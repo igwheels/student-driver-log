@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
@@ -9,9 +9,32 @@ export default function Dashboard() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { students, getLogs, getTotals, user } = useApp();
+  const { students, getLogs, getTotals, user, deleteStudent } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [celebration, setCelebration] = useState(location.state?.celebrate ?? null);
+  const [deleteStep, setDeleteStep] = useState(null);
+  const [deleteInput, setDeleteInput] = useState('');
+
+  useEffect(() => {
+    const handleDeleteClick = () => setDeleteStep('confirm');
+    window.addEventListener('openDeletePrompt', handleDeleteClick);
+    return () => window.removeEventListener('openDeletePrompt', handleDeleteClick);
+  }, []);
+
+  const handleDeleteConfirm = () => {
+    if (!deleteStep) return;
+    if (deleteStep === 'confirm') {
+      setDeleteStep('nameInput');
+      setDeleteInput('');
+    } else if (deleteStep === 'nameInput') {
+      if (deleteInput.trim() === `${student.firstName} ${student.lastName}`) {
+        deleteStudent(studentId);
+        navigate('/students');
+      } else {
+        setDeleteInput('');
+      }
+    }
+  };
 
   if (!student) return <div className="page">Student not found.</div>;
 
@@ -24,7 +47,7 @@ export default function Dashboard() {
 
   return (
     <div className="page">
-      <h2 style={{ fontSize: 24 }}>{student.firstName} {student.lastName}</h2>
+      <h2 style={{ fontSize: 24 }}>{student.firstName}'s Dashboard</h2>
       <p style={{ color: 'var(--muted)', marginTop: 2, marginBottom: 22 }}>{req.name}</p>
 
       {hasRequirement ? (
@@ -82,6 +105,50 @@ export default function Dashboard() {
             <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={() => setCelebration(null)}>
               Keep going!
             </button>
+          </div>
+        </div>
+      )}
+
+      {deleteStep === 'confirm' && (
+        <div className="modal-backdrop" onClick={() => setDeleteStep(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-text">Delete all {student.firstName}'s records?</div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDeleteStep(null)}>
+                No
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleDeleteConfirm}>
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteStep === 'nameInput' && (
+        <div className="modal-backdrop" onClick={() => setDeleteStep(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-text">Type {student.firstName}'s full name to confirm deletion:</div>
+            <input
+              type="text"
+              placeholder={`${student.firstName} ${student.lastName}`}
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              style={{ marginTop: 16, marginBottom: 16 }}
+            />
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDeleteStep(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                disabled={deleteInput.trim() !== `${student.firstName} ${student.lastName}`}
+                onClick={handleDeleteConfirm}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

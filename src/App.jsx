@@ -26,8 +26,9 @@ export default function App() {
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
   const showTopbar = !isLogin && !isTimer;
+  const isDashboard = location.pathname.startsWith('/dashboard');
   const title = TITLES[location.pathname] ||
-    (location.pathname.startsWith('/dashboard') ? 'Dashboard'
+    (isDashboard ? 'Dashboard'
     : location.pathname.startsWith('/log-drive') ? 'Log a Drive' : 'Student Driver Log');
 
   return (
@@ -37,8 +38,37 @@ export default function App() {
           {location.pathname !== '/students' && (
             <button className="back" onClick={() => navigate(-1)}>‹ Back</button>
           )}
-          <img src="/logo.png" alt="" />
+          <button
+            className="logo-btn"
+            onClick={() => navigate('/students')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            title="Go to home"
+          >
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Student Driver Log" />
+          </button>
           <span className="title">{title}</span>
+          {isDashboard && <div style={{ flex: 1 }} />}
+          {isDashboard && (
+            <button
+              className="delete-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('openDeletePrompt'))}
+              style={{
+                background: 'none',
+                border: '1px solid var(--muted)',
+                cursor: 'pointer',
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 18,
+              }}
+              title="Delete student records"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 

@@ -74,9 +74,18 @@ export function AppProvider({ children }) {
     return { totalMinutes: total, nightMinutes: night };
   };
 
+  const deleteStudent = (studentId) => {
+    setStudents((prev) => prev.filter((s) => s.id !== studentId));
+    setLogs((prev) => {
+      const updated = { ...prev };
+      delete updated[studentId];
+      return updated;
+    });
+  };
+
   return (
     <AppContext.Provider
-      value={{ user, setUser, students, addStudent, addLog, getLogs, getTotals, hydrated }}
+      value={{ user, setUser, students, addStudent, addLog, getLogs, getTotals, deleteStudent, hydrated }}
     >
       {children}
     </AppContext.Provider>
