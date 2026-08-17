@@ -58,14 +58,18 @@ export default function Login() {
     setError('');
     try {
       const provider = new GoogleAuthProvider();
+      // Force Google to show account picker every time
+      provider.setCustomParameters({ prompt: 'select_account' });
       const userCredential = await signInWithPopup(auth, provider);
       const { user } = userCredential;
+      console.log('Google sign-in successful:', user.uid);
       completeLogin({
         id: user.uid,
         name: user.displayName || 'User',
         email: user.email,
       });
     } catch (err) {
+      console.error('Google sign-in error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
         setError('Sign-in cancelled.');
       } else {
