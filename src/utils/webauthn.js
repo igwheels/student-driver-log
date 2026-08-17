@@ -39,7 +39,14 @@ export async function registerBiometric(profile) {
     },
   });
 
-  localStorage.setItem(CRED_ID_KEY, credential.id);
+  // Store credential ID as base64url for consistency with retrieval
+  const credIdArray = new Uint8Array(credential.rawId);
+  const credIdBase64 = btoa(String.fromCharCode.apply(null, credIdArray))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+
+  localStorage.setItem(CRED_ID_KEY, credIdBase64);
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   return credential;
 }
@@ -53,18 +60,26 @@ export async function authenticateBiometric() {
   if (!credId) throw new Error('No biometric credential enrolled on this device.');
 
   const challenge = randomBytes(32);
-  await navigator.credentials.get({
-    publicKey: {
-      challenge,
-      allowCredentials: [{ id: Uint8Array.from(atob(credId.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)), type: 'public-key' }],
-      userVerification: 'required',
-      timeout: 60000,
-    },
-  }).catch(() => {
-    // Some browsers base64-encode differently; fall back to a plain prompt
-    // if decoding the stored credential id fails. Re-registering resolves this.
+
+  // Decode base64url back to binary
+  const credIdBinary = atob(credId.replace(/-/g, '+').replace(/_/g, '/'));
+  const credIdArray = new Uint8Array(credIdBinary.length);
+  for (let i = 0; i < credIdBinary.length; i++) {
+    credIdArray[i] = credIdBinary.charCodeAt(i);
+  }
+
+  try {
+    await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        allowCredentials: [{ id: credIdArray, type: 'public-key' }],
+        userVerification: 'required',
+        timeout: 60000,
+      },
+    });
+  } catch (e) {
     throw new Error('Biometric verification failed or was cancelled.');
-  });
+  }
 
   const raw = localStorage.getItem(PROFILE_KEY);
   return raw ? JSON.parse(raw) : null;
