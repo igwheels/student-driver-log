@@ -173,8 +173,18 @@ export function AppProvider({ children }) {
 
 export const useApp = () => {
   const context = useContext(AppContext);
+  const logout = () => {
+    context.setUser(null);
+    console.log('User logged out');
+  };
+
+  // Log user changes for debugging
+  if (context.user) {
+    console.log('Current user:', { id: context.user.id, name: context.user.name, email: context.user.email });
+  }
+
   return {
     ...context,
-    logout: () => context.setUser(null),
+    logout,
   };
 };
