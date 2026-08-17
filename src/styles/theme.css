@@ -1,0 +1,393 @@
+/* ============================================================
+   Student Driver Log — design tokens
+   Concept: the app borrows two real artifacts from a learner's
+   world — a car's instrument cluster (the dashboard gauges) and
+   a permit/ID card (the student list) — instead of generic
+   SaaS cards and progress bars.
+   ============================================================ */
+
+:root {
+  /* Color */
+  --navy: #141C2E;
+  --navy-light: #1F2940;
+  --navy-lighter: #2A3654;
+  --blue: #2F6FDE;
+  --blue-soft: #7FA8F0;
+  --amber: #F2A63C;
+  --night: #6C5CE7;
+  --success: #2FA36B;
+  --danger: #D8503F;
+  --off-white: #F4F6FA;
+  --white: #FFFFFF;
+  --muted: #7C86A0;
+  --line: #DBE0EA;
+
+  /* Type */
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+  --font-body: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--off-white);
+  color: var(--navy);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+}
+
+input, select {
+  font-family: var(--font-body);
+}
+
+a { color: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- App shell ---------- */
+.app-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  background: var(--navy);
+  color: var(--white);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar img { width: 30px; height: 30px; border-radius: 8px; }
+.topbar .title { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+.topbar .back {
+  background: none; color: var(--blue-soft); font-size: 14px; font-weight: 600;
+}
+
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 28px 20px 64px;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 15px 20px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 16px;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--blue); color: var(--white); }
+.btn-dark { background: var(--navy); color: var(--white); }
+.btn-outline { background: transparent; color: var(--blue); border: 2px solid var(--blue); }
+.btn-ghost { background: var(--white); color: var(--navy); border: 1px solid var(--line); }
+
+/* ---------- Form controls ---------- */
+.field { margin-top: 16px; }
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+.field input, .field select {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--white);
+  font-size: 15px;
+  color: var(--navy);
+}
+.field input:focus, .field select:focus {
+  border-color: var(--blue);
+}
+
+/* ============================================================
+   Signature element 1: the Instrument Cluster (dashboard gauges)
+   ============================================================ */
+.dash-panel {
+  background: linear-gradient(180deg, var(--navy) 0%, var(--navy-light) 100%);
+  border-radius: var(--radius-lg);
+  padding: 28px 16px 22px;
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 30px -14px rgba(20,28,46,0.5);
+}
+
+.gauge-wrap { text-align: center; }
+.gauge-label {
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.6);
+  font-weight: 600;
+}
+.gauge-readout {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  fill: var(--white);
+}
+.gauge-goal {
+  font-family: var(--font-mono);
+  fill: rgba(255,255,255,0.45);
+}
+
+.no-req-card {
+  background: linear-gradient(180deg, #1E5C41 0%, #16452F 100%);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  color: var(--white);
+  text-align: center;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   Signature element 2: the Permit Card (student list)
+   ============================================================ */
+.plate-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  position: relative;
+  overflow: hidden;
+}
+.plate-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 6px;
+  background: var(--blue);
+}
+.plate-card .name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+}
+.plate-card .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.plate-badge {
+  font-family: var(--font-mono);
+  background: var(--navy);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 48px 16px;
+  line-height: 1.6;
+}
+
+/* ---------- Log ledger table ---------- */
+.ledger { margin-top: 10px; }
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 14px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.ledger-row .date { font-weight: 700; font-size: 14px; }
+.ledger-row .meta { color: var(--muted); font-size: 12px; margin-top: 2px; text-transform: capitalize; }
+.ledger-row .duration { font-family: var(--font-mono); font-weight: 700; color: var(--blue); }
+
+/* ---------- Timer (trip computer) ---------- */
+.timer-screen {
+  min-height: 100%;
+  background: radial-gradient(circle at 50% 20%, var(--navy-lighter), var(--navy) 70%);
+  color: var(--white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.timer-label {
+  color: var(--blue-soft);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 14px;
+  font-weight: 700;
+}
+.timer-readout {
+  font-family: var(--font-mono);
+  font-size: 68px;
+  font-weight: 700;
+  margin: 18px 0 6px;
+  letter-spacing: 0.02em;
+}
+.timer-hint { color: var(--muted); font-size: 14px; margin-bottom: 52px; }
+
+.ignition-btn {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #E2604E, var(--danger) 70%);
+  color: var(--white);
+  font-weight: 800;
+  font-size: 18px;
+  box-shadow: 0 0 0 8px rgba(216,80,63,0.15), 0 20px 40px -16px rgba(216,80,63,0.6);
+}
+.ignition-btn:active { transform: scale(0.97); }
+
+/* ---------- Radio + select rows ---------- */
+.radio-row {
+  display: flex;
+  gap: 24px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.radio-dot {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid var(--muted);
+  display: flex; align-items: center; justify-content: center;
+}
+.radio-dot.active { border-color: var(--blue); }
+.radio-dot.active::after {
+  content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--blue);
+}
+.radio-item.selected-day .radio-dot.active { border-color: var(--amber); }
+.radio-item.selected-day .radio-dot.active::after { background: var(--amber); }
+
+.duration-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #E7EEFB;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+.duration-value { font-family: var(--font-mono); font-weight: 700; font-size: 18px; color: var(--blue); }
+.duration-hint { font-size: 12px; color: var(--muted); }
+
+/* ---------- Login ---------- */
+.login-screen {
+  min-height: 100%;
+  background: var(--navy);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+}
+.login-logo { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 14px; }
+.login-title { color: var(--white); font-size: 24px; margin-bottom: 28px; }
+.login-form { width: 100%; max-width: 340px; }
+.login-form input {
+  width: 100%;
+  background: var(--navy-light);
+  border: 1px solid var(--navy-lighter);
+  color: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  font-size: 15px;
+}
+.login-form input::placeholder { color: var(--muted); }
+.divider {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted); font-size: 12px; margin: 18px 0;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--navy-lighter);
+}
+.bio-link { text-align: center; margin-top: 16px; color: var(--blue-soft); font-weight: 600; font-size: 14px; background: none; }
+
+.req-note {
+  background: #E7EEFB;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.req-note .req-title { font-weight: 700; }
+.req-note .req-sub { color: var(--muted); margin-top: 6px; }
+
+/* ---------- Encouragement modal ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(20,28,46,0.65);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+.modal-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 32px 26px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+}
+.modal-emoji { font-size: 42px; margin-bottom: 8px; }
+.modal-text { font-size: 17px; font-weight: 600; line-height: 1.5; }
+
+@media (max-width: 420px) {
+  .timer-readout { font-size: 52px; }
+  .ignition-btn { width: 150px; height: 150px; }
+}
