@@ -1,19 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { db, auth } from '../firebase';
+import { collection, addDoc, deleteDoc, doc, getDocs, query, where, writeBatch } from 'firebase/firestore';
 
-/**
- * Local-first data store. Students and drive logs persist in localStorage.
- * When you wire up Firebase (see README), mirror these writes to Firestore
- * so data syncs across devices and powers the weekly emails.
- */
 const AppContext = createContext(null);
 const STORAGE_KEY = 'sdl_data_v1';
 
 export function AppProvider({ children }) {
-  const [user, setUser] = useState(null); // { id, name, email }
-  const [students, setStudents] = useState([]); // { id, firstName, lastName, email, state }
-  const [logs, setLogs] = useState({}); // { [studentId]: DriveLog[] }
+  const [user, setUser] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [logs, setLogs] = useState({});
   const [hydrated, setHydrated] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
+  // Load from localStorage on mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -23,42 +22,85 @@ export function AppProvider({ children }) {
         setLogs(data.logs ?? {});
       }
     } catch (e) {
-      console.warn('Failed to load saved data', e);
+      console.warn('Failed to load from localStorage', e);
     } finally {
       setHydrated(true);
     }
   }, []);
 
+  // Save to localStorage when data changes
   useEffect(() => {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ students, logs }));
     } catch (e) {
-      console.warn('Failed to save data', e);
+      console.warn('Failed to save to localStorage', e);
     }
   }, [students, logs, hydrated]);
 
-  const addStudent = (student) => {
+  // Load from Firestore when user logs in
+  useEffect(() => {
+    if (!user?.id || !hydrated) return;
+
+    const loadFromFirestore = async () => {
+      try {
+        setSyncing(true);
+        // Load students
+        const studentsRef = collection(db, 'users', user.id, 'students');
+        const studentsSnap = await getDocs(studentsRef);
+        const studentsData = studentsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setStudents(studentsData);
+
+        // Load logs for each student
+        const logsData = {};
+        for (const student of studentsData) {
+          const logsRef = collection(db, 'users', user.id, 'students', student.id, 'logs');
+          const logsSnap = await getDocs(logsRef);
+          logsData[student.id] = logsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
+        setLogs(logsData);
+      } catch (e) {
+        console.warn('Failed to load from Firestore', e);
+      } finally {
+        setSyncing(false);
+      }
+    };
+
+    loadFromFirestore();
+  }, [user?.id, hydrated]);
+
+  const addStudent = async (student) => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    setStudents((prev) => [...prev, { id, ...student }]);
+    const newStudent = { id, ...student };
+    setStudents((prev) => [...prev, newStudent]);
+
+    // Save to Firestore
+    if (user?.id) {
+      try {
+        await addDoc(collection(db, 'users', user.id, 'students'), newStudent);
+      } catch (e) {
+        console.warn('Failed to save student to Firestore', e);
+      }
+    }
     return id;
   };
 
-  /**
-   * DriveLog shape:
-   * {
-   *   id, date (yyyy-mm-dd), startTime (ISO), endTime (ISO),
-   *   durationMinutes, timeOfDay: 'day' | 'night',
-   *   type: 'local' | 'rural' | 'highway',
-   *   distanceMiles: number | null
-   * }
-   */
-  const addLog = (studentId, log) => {
+  const addLog = async (studentId, log) => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const newLog = { id, ...log };
     setLogs((prev) => ({
       ...prev,
-      [studentId]: [{ id, ...log }, ...(prev[studentId] ?? [])],
+      [studentId]: [newLog, ...(prev[studentId] ?? [])],
     }));
+
+    // Save to Firestore
+    if (user?.id) {
+      try {
+        await addDoc(collection(db, 'users', user.id, 'students', studentId, 'logs'), newLog);
+      } catch (e) {
+        console.warn('Failed to save log to Firestore', e);
+      }
+    }
   };
 
   const getLogs = (studentId) => logs[studentId] ?? [];
@@ -74,25 +116,43 @@ export function AppProvider({ children }) {
     return { totalMinutes: total, nightMinutes: night };
   };
 
-  const deleteStudent = (studentId) => {
+  const deleteStudent = async (studentId) => {
     setStudents((prev) => prev.filter((s) => s.id !== studentId));
     setLogs((prev) => {
       const updated = { ...prev };
       delete updated[studentId];
       return updated;
     });
+
+    // Delete from Firestore
+    if (user?.id) {
+      try {
+        await deleteDoc(doc(db, 'users', user.id, 'students', studentId));
+      } catch (e) {
+        console.warn('Failed to delete student from Firestore', e);
+      }
+    }
   };
 
-  const deleteDrive = (studentId, driveId) => {
+  const deleteDrive = async (studentId, driveId) => {
     setLogs((prev) => ({
       ...prev,
       [studentId]: prev[studentId]?.filter((log) => log.id !== driveId) ?? [],
     }));
+
+    // Delete from Firestore
+    if (user?.id) {
+      try {
+        await deleteDoc(doc(db, 'users', user.id, 'students', studentId, 'logs', driveId));
+      } catch (e) {
+        console.warn('Failed to delete log from Firestore', e);
+      }
+    }
   };
 
   return (
     <AppContext.Provider
-      value={{ user, setUser, students, addStudent, addLog, getLogs, getTotals, deleteStudent, deleteDrive, hydrated }}
+      value={{ user, setUser, students, addStudent, addLog, getLogs, getTotals, deleteStudent, deleteDrive, hydrated, syncing }}
     >
       {children}
     </AppContext.Provider>
