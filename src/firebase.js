@@ -2,14 +2,14 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Replace with your Firebase config from the Firebase Console
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT.appspot.com',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyCkf0lYqIF-GK3Eg3WT0vyLe_si1VYyM4M',
+  authDomain: 'student-driver-log-b1924.firebaseapp.com',
+  projectId: 'student-driver-log-b1924',
+  storageBucket: 'student-driver-log-b1924.firebasestorage.app',
+  messagingSenderId: '829898988631',
+  appId: '1:829898988631:web:cca7973251680529eb9712',
+  measurementId: 'G-NYHC3QJ5CN',
 };
 
 const app = initializeApp(firebaseConfig);
