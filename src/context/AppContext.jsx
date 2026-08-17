@@ -99,4 +99,10 @@ export function AppProvider({ children }) {
   );
 }
 
-export const useApp = () => useContext(AppContext);
+export const useApp = () => {
+  const context = useContext(AppContext);
+  return {
+    ...context,
+    logout: () => context.setUser(null),
+  };
+};

@@ -23,6 +23,7 @@ function RequireAuth({ children }) {
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout } = useApp();
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
   const showTopbar = !isLogin && !isTimer;
@@ -30,6 +31,11 @@ export default function App() {
   const title = TITLES[location.pathname] ||
     (isDashboard ? 'Dashboard'
     : location.pathname.startsWith('/log-drive') ? 'Log a Drive' : 'Student Driver Log');
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="app-shell">
@@ -47,7 +53,7 @@ export default function App() {
             <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Student Driver Log" />
           </button>
           <span className="title">{title}</span>
-          {isDashboard && <div style={{ flex: 1 }} />}
+          <div style={{ flex: 1 }} />
           {isDashboard && (
             <button
               className="delete-btn"
@@ -63,12 +69,29 @@ export default function App() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 18,
+                marginRight: 8,
               }}
               title="Delete student records"
             >
               ✕
             </button>
           )}
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'none',
+              border: '1px solid var(--muted)',
+              cursor: 'pointer',
+              color: 'var(--muted)',
+              padding: '6px 12px',
+              borderRadius: 6,
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+            title="Log out"
+          >
+            Log out
+          </button>
         </div>
       )}
 
