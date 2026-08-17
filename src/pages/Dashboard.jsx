@@ -9,11 +9,13 @@ export default function Dashboard() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { students, getLogs, getTotals, user, deleteStudent } = useApp();
+  const { students, getLogs, getTotals, user, deleteStudent, deleteDrive } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [celebration, setCelebration] = useState(location.state?.celebrate ?? null);
   const [deleteStep, setDeleteStep] = useState(null);
   const [deleteInput, setDeleteInput] = useState('');
+  const [showAllDrives, setShowAllDrives] = useState(false);
+  const [deleteDriveId, setDeleteDriveId] = useState(null);
 
   useEffect(() => {
     const handleDeleteClick = () => setDeleteStep('confirm');
@@ -33,6 +35,13 @@ export default function Dashboard() {
       } else {
         setDeleteInput('');
       }
+    }
+  };
+
+  const handleDeleteDriveConfirm = () => {
+    if (deleteDriveId) {
+      deleteDrive(studentId, deleteDriveId);
+      setDeleteDriveId(null);
     }
   };
 
@@ -84,17 +93,45 @@ export default function Dashboard() {
       {logs.length === 0 ? (
         <p style={{ color: 'var(--muted)' }}>No drives logged yet. Start one above!</p>
       ) : (
-        <div className="ledger">
-          {logs.slice(0, 10).map((l) => (
-            <div key={l.id} className="ledger-row">
-              <div>
-                <div className="date">{l.date}</div>
-                <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}</div>
+        <>
+          <div className="ledger">
+            {logs.slice(0, showAllDrives ? logs.length : 5).map((l) => (
+              <div
+                key={l.id}
+                className="ledger-row"
+                onClick={() => setDeleteDriveId(l.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div>
+                  <div className="date">{l.date}</div>
+                  <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}</div>
+                </div>
+                <div className="duration mono">{fmtDuration(l.durationMinutes)}</div>
               </div>
-              <div className="duration mono">{fmtDuration(l.durationMinutes)}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          {!showAllDrives && logs.length > 5 && (
+            <button
+              onClick={() => setShowAllDrives(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--muted)',
+                fontSize: 14,
+                marginTop: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                gap: 8,
+              }}
+            >
+              Show all
+              <span style={{ fontSize: 16 }}>↓</span>
+            </button>
+          )}
+        </>
       )}
 
       {celebration && (
@@ -147,6 +184,22 @@ export default function Dashboard() {
                 onClick={handleDeleteConfirm}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteDriveId && (
+        <div className="modal-backdrop" onClick={() => setDeleteDriveId(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-text">Delete this drive?</div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDeleteDriveId(null)}>
+                No
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleDeleteDriveConfirm}>
+                Yes
               </button>
             </div>
           </div>

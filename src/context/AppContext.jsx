@@ -83,9 +83,16 @@ export function AppProvider({ children }) {
     });
   };
 
+  const deleteDrive = (studentId, driveId) => {
+    setLogs((prev) => ({
+      ...prev,
+      [studentId]: prev[studentId]?.filter((log) => log.id !== driveId) ?? [],
+    }));
+  };
+
   return (
     <AppContext.Provider
-      value={{ user, setUser, students, addStudent, addLog, getLogs, getTotals, deleteStudent, hydrated }}
+      value={{ user, setUser, students, addStudent, addLog, getLogs, getTotals, deleteStudent, deleteDrive, hydrated }}
     >
       {children}
     </AppContext.Provider>
