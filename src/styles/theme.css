@@ -80,13 +80,13 @@ a { color: inherit; }
 .topbar {
   background: var(--navy);
   color: var(--white);
-  padding: 16px 24px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
-.topbar img { width: 30px; height: 30px; border-radius: 8px; }
+.topbar img { width: 48px; height: 48px; border-radius: 12px; }
 .topbar .title { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
 .topbar .back {
   background: none; color: var(--blue-soft); font-size: 14px; font-weight: 600;
