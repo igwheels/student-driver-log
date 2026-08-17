@@ -45,10 +45,13 @@ export function AppProvider({ children }) {
     const loadFromFirestore = async () => {
       try {
         setSyncing(true);
+        console.log('Loading from Firestore for user:', user.id);
+
         // Load students
         const studentsRef = collection(db, 'users', user.id, 'students');
         const studentsSnap = await getDocs(studentsRef);
         const studentsData = studentsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        console.log('Students loaded from Firestore:', studentsData);
         setStudents(studentsData);
 
         // Load logs for each student
@@ -58,9 +61,10 @@ export function AppProvider({ children }) {
           const logsSnap = await getDocs(logsRef);
           logsData[student.id] = logsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.date) - new Date(a.date));
         }
+        console.log('Logs loaded from Firestore:', logsData);
         setLogs(logsData);
       } catch (e) {
-        console.warn('Failed to load from Firestore', e);
+        console.error('Failed to load from Firestore:', e);
       } finally {
         setSyncing(false);
       }
@@ -77,10 +81,14 @@ export function AppProvider({ children }) {
     // Save to Firestore
     if (user?.id) {
       try {
+        console.log('Saving student to Firestore:', newStudent, 'for user:', user.id);
         await addDoc(collection(db, 'users', user.id, 'students'), newStudent);
+        console.log('Student saved successfully');
       } catch (e) {
-        console.warn('Failed to save student to Firestore', e);
+        console.error('Failed to save student to Firestore:', e);
       }
+    } else {
+      console.log('No user logged in, student not saved to Firestore');
     }
     return id;
   };
@@ -96,10 +104,14 @@ export function AppProvider({ children }) {
     // Save to Firestore
     if (user?.id) {
       try {
+        console.log('Saving log to Firestore:', newLog, 'for user:', user.id, 'student:', studentId);
         await addDoc(collection(db, 'users', user.id, 'students', studentId, 'logs'), newLog);
+        console.log('Log saved successfully');
       } catch (e) {
-        console.warn('Failed to save log to Firestore', e);
+        console.error('Failed to save log to Firestore:', e);
       }
+    } else {
+      console.log('No user logged in, log not saved to Firestore');
     }
   };
 
