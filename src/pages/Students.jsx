@@ -40,7 +40,9 @@ export default function Students() {
                     <div className="name">{s.firstName} {s.lastName}</div>
                     <div className="sub" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span>{STATE_REQUIREMENTS[s.state]?.name}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>• Shared</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>
+                        • Shared{s.ownerName ? ` by ${s.ownerName}` : ''}
+                      </span>
                     </div>
                   </div>
                   <div className="plate-badge">{s.state}</div>

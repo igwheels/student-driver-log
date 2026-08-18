@@ -25,13 +25,15 @@ export default function ShareModal({ studentId, student, onClose, onShare }) {
 
     setLoading(true);
     try {
-      await shareStudent(studentId, email.trim(), email.split('@')[0]);
-      setSuccess(`Shared with ${email}!`);
+      await shareStudent(studentId, email.trim());
+      setSuccess(
+        `Shared with ${email}. They'll see it immediately if they already have an account, or get an email invitation to create one.`
+      );
       setEmail('');
       setTimeout(() => {
         onShare?.();
         onClose();
-      }, 1500);
+      }, 2500);
     } catch (err) {
       setError(err.message || 'Failed to share student');
       console.error('Share error:', err);
@@ -47,7 +49,7 @@ export default function ShareModal({ studentId, student, onClose, onShare }) {
 
         <form onSubmit={handleShare} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-primary)' }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--navy)' }}>
               Recipient Email
             </label>
             <input
@@ -60,11 +62,11 @@ export default function ShareModal({ studentId, student, onClose, onShare }) {
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: 6,
-                border: '1px solid var(--border)',
+                border: '1px solid var(--line)',
                 fontSize: 14,
                 fontFamily: 'inherit',
-                backgroundColor: 'var(--bg-primary)',
-                color: 'var(--text-primary)',
+                backgroundColor: 'var(--white)',
+                color: 'var(--navy)',
               }}
             />
           </div>

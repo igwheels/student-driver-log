@@ -54,35 +54,20 @@ Since student drivers are typically minors, keep these emails strictly transacti
 
 `src/data/stateRequirements.js` encodes the IIHS Graduated Licensing Laws table as of **July 2026**, including per-state night-hour rules and notes (e.g., "waived with driver's ed"). GDL laws change — add a "verify with your DMV" note in the UI/PDF and re-check the IIHS table periodically.
 
-## Student Sharing Feature
+## Sharing a student with another parent
 
-**New in this version:** Users can now share student driving logs with co-parents, guardians, and other authorized users.
+A student's owner can share their dashboard with another parent/guardian by email from the student's dashboard (**Share** button). Access is enforced by Firestore security rules matching the signed-in user's email against the student's `sharedWithEmails` list, so it takes effect the instant the recipient is signed in with that email — whether they already had an account or just created one. Shared users can view the dashboard, add/delete drives, and export the PDF log, but can't edit the student's name/state or delete the student. Unsharing removes future access but keeps any drives that user logged.
 
-### Key Features
+A GitHub Actions workflow (`send-invitations.yml`, same Gmail setup as the weekly emails) emails the recipient a link every ~15 minutes for any pending shares, so they know to sign in or create an account.
 
-- **Share by email**: Owner can share a student with any email address
-- **Instant or invitation-based access**: If recipient has an account, they get access immediately; otherwise they receive an invitation email
-- **Limited permissions**: Shared users can view, add, and delete drives, but cannot edit student info or delete the student
-- **Data safety**: Drives persist when unsharing; shared data is never lost
-- **Automatic access grant**: When new users sign up with an invited email, they automatically get access
+**One-time setup after adding this feature to an existing deployment:**
 
-### Quick Setup
-
-1. Run the data migration to add sharing fields to existing students:
+1. Update your Firestore security rules (see the rules block in project chat history, or ask to have them regenerated) to allow reading a student when `request.auth.token.email` is in its `sharedWithEmails` array, and to allow the `collectionGroup('students')` query the app uses to find students shared with you.
+2. Migrate any existing students so they have the new fields:
    ```bash
    export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
    node scripts/migrate-add-sharing-fields.js
    ```
-
-2. Update Firestore security rules (see `FIRESTORE_SECURITY_RULES.md`)
-
-3. (Optional) Set up email notifications via Cloud Functions or backend (see `SHARING_SETUP_QUICKSTART.md`)
-
-For detailed setup instructions, see:
-- **Quick start:** `SHARING_SETUP_QUICKSTART.md`
-- **Full documentation:** `STUDENT_SHARING_IMPLEMENTATION.md`
-- **Security rules:** `FIRESTORE_SECURITY_RULES.md`
-- **Deployment checklist:** `DEPLOYMENT_CHECKLIST.md`
 
 ## Project structure
 

@@ -81,14 +81,14 @@ export default function Dashboard() {
           <span style={{
             fontSize: 11,
             fontWeight: 600,
-            color: 'var(--muted)',
-            backgroundColor: 'var(--bg-secondary)',
+            color: 'var(--navy)',
+            backgroundColor: 'var(--line)',
             padding: '4px 8px',
             borderRadius: 4,
             textTransform: 'uppercase',
             letterSpacing: 0.5,
           }}>
-            Shared
+            Shared{student.ownerName ? ` by ${student.ownerName}` : ''}
           </span>
         )}
       </div>
@@ -130,7 +130,7 @@ export default function Dashboard() {
       </div>
 
       {isOwner(studentId) && sharedUsers.length > 0 && (
-        <div style={{ marginTop: 24, padding: 16, backgroundColor: 'var(--bg-secondary)', borderRadius: 8 }}>
+        <div style={{ marginTop: 24, padding: 16, backgroundColor: 'var(--white)', border: '1px solid var(--line)', borderRadius: 8 }}>
           <h4 style={{ fontSize: 14, fontWeight: 600, marginTop: 0, marginBottom: 12 }}>Shared with</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {sharedUsers.map((share) => (
@@ -141,7 +141,7 @@ export default function Dashboard() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '10px 12px',
-                  backgroundColor: 'var(--bg-primary)',
+                  backgroundColor: 'var(--off-white)',
                   borderRadius: 6,
                   fontSize: 14,
                 }}

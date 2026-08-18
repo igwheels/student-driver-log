@@ -1,70 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import {
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
 } from 'firebase/auth';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 
 /**
  * AUTH WIRING NOTES
  * -----------------
  * Sign-in options:
- *  1. Email/password: use Firebase Authentication (signInWithEmailAndPassword)
- *  2. Google: use Firebase Authentication (signInWithPopup + GoogleAuthProvider)
+ *  1. Email/password: signInWithEmailAndPassword, falling back to
+ *     createUserWithEmailAndPassword the first time (so first-time visitors,
+ *     including invited co-parents, get a real Firebase account and uid).
+ *  2. Google: signInWithPopup + GoogleAuthProvider.
  *  3. Apple Sign-In: available through Firebase's OAuthProvider('apple.com')
- *     but requires domain verification in your Apple Developer account
+ *     but requires domain verification in your Apple Developer account.
+ *
+ * Sharing a student takes effect the moment the recipient is signed in with
+ * the email it was shared with — see src/context/AppContext.jsx.
  */
 export default function Login() {
   const { setUser } = useApp();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const [email, setEmail] = useState(searchParams.get('email') || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const completeLogin = async (profile) => {
+  const completeLogin = (profile) => {
     setUser(profile);
-
-    // Check for pending invitations
-    try {
-      const invitationsRef = collection(db, 'invitations');
-      const q = query(invitationsRef, where('email', '==', profile.email), where('accepted', '==', false));
-      const invitationsSnap = await getDocs(q);
-
-      if (invitationsSnap.docs.length > 0) {
-        console.log('Found pending invitations:', invitationsSnap.docs.length);
-
-        // Mark invitations as accepted and grant access
-        for (const invDoc of invitationsSnap.docs) {
-          const inv = invDoc.data();
-          await updateDoc(invDoc.ref, { accepted: true, acceptedAt: new Date().toISOString() });
-
-          // Add user to the student's sharedWith if not already there
-          const studentRef = doc(db, 'users', inv.ownerId, 'students', inv.studentId);
-          const studentSnap = await getDocs(collection(db, 'users', inv.ownerId, 'students'));
-
-          for (const studentDoc of studentSnap.docs) {
-            if (studentDoc.id === inv.studentId) {
-              const student = studentDoc.data();
-              const sharedWith = student.sharedWith || [];
-
-              if (!sharedWith.some(s => s.email === profile.email)) {
-                sharedWith.push({ email: profile.email, addedAt: new Date().toISOString() });
-                await updateDoc(studentRef, { sharedWith });
-              }
-              break;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to process invitations:', e);
-      // Don't block login on invitation processing failure
-    }
-
     navigate('/students');
   };
 
@@ -75,18 +43,21 @@ export default function Login() {
       setError('Please enter your email and password.');
       return;
     }
+    const trimmedEmail = email.trim();
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const { user } = userCredential;
-      completeLogin({
-        id: user.uid,
-        name: user.displayName || email.split('@')[0],
-        email: user.email,
-      });
+      const { user } = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+      completeLogin({ id: user.uid, name: user.displayName || trimmedEmail.split('@')[0], email: user.email });
     } catch (err) {
       const code = err.code || '';
-      if (code.includes('user-not-found') || code.includes('invalid-credential') || code.includes('wrong-password')) {
-        completeLogin({ id: 'local', name: email.split('@')[0], email: email.trim() });
+      if (code.includes('user-not-found') || code.includes('invalid-credential')) {
+        // No account yet for this email — create one (covers first-time visitors
+        // and invited co-parents signing up for the first time).
+        try {
+          const { user } = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+          completeLogin({ id: user.uid, name: trimmedEmail.split('@')[0], email: user.email });
+        } catch (createErr) {
+          setError(createErr.message || 'Could not create an account with that email.');
+        }
       } else {
         setError(err.message || 'Sign-in failed. Check your email and password.');
       }
@@ -97,18 +68,10 @@ export default function Login() {
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      // Force Google to show account picker every time
       provider.setCustomParameters({ prompt: 'select_account' });
-      const userCredential = await signInWithPopup(auth, provider);
-      const { user } = userCredential;
-      console.log('Google sign-in successful:', user.uid);
-      completeLogin({
-        id: user.uid,
-        name: user.displayName || 'User',
-        email: user.email,
-      });
+      const { user } = await signInWithPopup(auth, provider);
+      completeLogin({ id: user.uid, name: user.displayName || 'User', email: user.email });
     } catch (err) {
-      console.error('Google sign-in error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
         setError('Sign-in cancelled.');
       } else {
