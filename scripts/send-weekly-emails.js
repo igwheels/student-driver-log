@@ -58,8 +58,16 @@ async function main() {
     sends.push(
       transporter.sendMail({
         to: student.email,
-        from: process.env.GMAIL_EMAIL,
+        from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
+        replyTo: process.env.GMAIL_EMAIL,
         subject: `🚗 Your weekly driving progress, ${student.firstName}!`,
+        text: `Keep up the great driving, ${student.firstName}!
+
+Total supervised hours: ${fmt(total)}
+Night hours: ${fmt(night)}
+${progressLine}
+
+See you on the road!`,
         html: `
           <h2>Keep up the great driving, ${student.firstName}!</h2>
           <p><strong>Total supervised hours:</strong> ${fmt(total)}</p>
