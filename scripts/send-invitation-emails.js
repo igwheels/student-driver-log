@@ -40,8 +40,15 @@ async function main() {
   const results = await Promise.allSettled(
     pending.docs.map(async (docSnap) => {
       const invitation = docSnap.data();
-      const { subject, html } = generateInvitationEmailContent(invitation, APP_URL);
-      await transporter.sendMail({ to: invitation.email, from: process.env.GMAIL_EMAIL, subject, html });
+      const { subject, text, html } = generateInvitationEmailContent(invitation, APP_URL);
+      await transporter.sendMail({
+        to: invitation.email,
+        from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
+        replyTo: process.env.GMAIL_EMAIL,
+        subject,
+        text,
+        html,
+      });
       await docSnap.ref.update({ emailSent: true, emailSentAt: new Date().toISOString() });
     })
   );

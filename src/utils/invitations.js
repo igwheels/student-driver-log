@@ -18,8 +18,17 @@ export const generateSignupLink = (email, appUrl) => {
 export const generateInvitationEmailContent = (invitation, appUrl) => {
   const signupUrl = generateSignupLink(invitation.email, appUrl);
 
+  const text = `${invitation.ownerName} (${invitation.ownerEmail}) shared ${invitation.studentName}'s Student Driver Log with you.
+
+Sign in with this email address (${invitation.email}) to view driving hours, progress toward state requirements, and log drives yourself. If you don't have an account yet, just enter this email and a password to create one — access is granted automatically.
+
+Open Student Driver Log: ${signupUrl}
+
+This is an automatic message from Student Driver Log. If you didn't expect this, you can safely ignore it.`;
+
   return {
     subject: `${invitation.ownerName} shared ${invitation.studentName}'s driving log with you`,
+    text,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #141C2E; margin-bottom: 16px;">You've got access to a Student Driver Log!</h2>
