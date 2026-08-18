@@ -84,6 +84,14 @@ export function AppProvider({ children }) {
         const logsData = {};
         for (const student of allStudents) {
           try {
+            if (typeof student.ownerId !== 'string' || typeof student.id !== 'string') {
+              console.error(
+                `Skipping logs for ${student.firstName} ${student.lastName}: bad ownerId/id`,
+                { ownerId: student.ownerId, id: student.id, isOwner: student.isOwner }
+              );
+              logsData[student.id] = logs[student.id] ?? [];
+              continue;
+            }
             const logsSnap = await getDocs(
               collection(db, 'users', student.ownerId, 'students', student.id, 'logs')
             );
