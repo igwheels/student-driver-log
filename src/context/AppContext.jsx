@@ -63,17 +63,19 @@ export function AppProvider({ children }) {
         // Students shared with this user's email, found via a collection-group query
         // (avoids scanning every user's data — only matches students that list this email)
         let sharedStudents = [];
+        console.log('Looking for students shared with:', userEmail);
         try {
           const sharedQuery = query(
             collectionGroup(db, 'students'),
             where('sharedWithEmails', 'array-contains', userEmail)
           );
           const sharedSnap = await getDocs(sharedQuery);
+          console.log('Shared-student query returned', sharedSnap.docs.length, 'document(s)');
           sharedStudents = sharedSnap.docs
             .filter((d) => d.data().ownerId !== user.id) // safety: don't double-list own students
             .map((d) => ({ ...d.data(), id: d.id, isOwner: false }));
         } catch (e) {
-          console.warn('Failed to load shared students:', e);
+          console.error('Failed to load shared students (likely a Firestore rules issue):', e);
         }
 
         const allStudents = [...ownedStudents, ...sharedStudents];
