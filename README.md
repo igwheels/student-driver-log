@@ -54,6 +54,36 @@ Since student drivers are typically minors, keep these emails strictly transacti
 
 `src/data/stateRequirements.js` encodes the IIHS Graduated Licensing Laws table as of **July 2026**, including per-state night-hour rules and notes (e.g., "waived with driver's ed"). GDL laws change — add a "verify with your DMV" note in the UI/PDF and re-check the IIHS table periodically.
 
+## Student Sharing Feature
+
+**New in this version:** Users can now share student driving logs with co-parents, guardians, and other authorized users.
+
+### Key Features
+
+- **Share by email**: Owner can share a student with any email address
+- **Instant or invitation-based access**: If recipient has an account, they get access immediately; otherwise they receive an invitation email
+- **Limited permissions**: Shared users can view, add, and delete drives, but cannot edit student info or delete the student
+- **Data safety**: Drives persist when unsharing; shared data is never lost
+- **Automatic access grant**: When new users sign up with an invited email, they automatically get access
+
+### Quick Setup
+
+1. Run the data migration to add sharing fields to existing students:
+   ```bash
+   export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
+   node scripts/migrate-add-sharing-fields.js
+   ```
+
+2. Update Firestore security rules (see `FIRESTORE_SECURITY_RULES.md`)
+
+3. (Optional) Set up email notifications via Cloud Functions or backend (see `SHARING_SETUP_QUICKSTART.md`)
+
+For detailed setup instructions, see:
+- **Quick start:** `SHARING_SETUP_QUICKSTART.md`
+- **Full documentation:** `STUDENT_SHARING_IMPLEMENTATION.md`
+- **Security rules:** `FIRESTORE_SECURITY_RULES.md`
+- **Deployment checklist:** `DEPLOYMENT_CHECKLIST.md`
+
 ## Project structure
 
 ```
@@ -61,14 +91,17 @@ index.html                       entry HTML + font imports
 src/main.jsx                     React root, HashRouter
 src/App.jsx                      routes + topbar
 src/styles/theme.css             design tokens, dash-panel, plate-card, gauge, timer styles
-src/context/AppContext.jsx       students, logs, totals, localStorage persistence
+src/context/AppContext.jsx       students, logs, totals, localStorage + sharing functions
 src/data/stateRequirements.js    per-state hour requirements (IIHS)
 src/data/encouragements.js       random praise messages
 src/components/Gauge.jsx         SVG speedometer-style dial gauge
+src/components/ShareModal.jsx    sharing UI modal
 src/pages/                       Login, Students, AddStudent, Dashboard, DriveTimer, LogDrive
 src/utils/pdfExport.js           affidavit + log table PDF (jsPDF)
 src/utils/webauthn.js            biometric login (WebAuthn)
+src/utils/invitations.js         invitation email utilities
 scripts/send-weekly-emails.js    weekly email cron script (run by GitHub Actions)
+scripts/migrate-add-sharing-fields.js  migrate existing students for sharing feature
 .github/workflows/deploy.yml     builds + publishes to GitHub Pages on push
 .github/workflows/weekly-emails.yml  Monday-morning progress email cron
 ```
