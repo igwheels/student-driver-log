@@ -3,8 +3,8 @@
  * on a Monday-morning schedule via GitHub Actions (no separate server needed).
  *
  * Requires:
- *   - Firestore mirroring the app's students + logs (see README "Syncing data")
- *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), SENDGRID_API_KEY
+ *   - Firestore mirroring the app's students + logs
+ *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), GMAIL_EMAIL, GMAIL_APP_PASSWORD
  *
  * Firestore structure expected:
  *   users/{uid}/students/{studentId}         -> { firstName, lastName, email, state }
@@ -12,12 +12,20 @@
  */
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 import { STATE_REQUIREMENTS } from '../src/data/stateRequirements.js';
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 initializeApp({ credential: cert(serviceAccount) });
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// Create Gmail transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_EMAIL,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 const fmt = (mins) => `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;
 
@@ -48,9 +56,9 @@ async function main() {
         : 'Your state has no minimum hour requirement — every hour you log is above and beyond!';
 
     sends.push(
-      sgMail.send({
+      transporter.sendMail({
         to: student.email,
-        from: process.env.SENDGRID_FROM_EMAIL || 'noreply@studentdriverlog.com', // must be a verified SendGrid sender
+        from: process.env.GMAIL_EMAIL,
         subject: `🚗 Your weekly driving progress, ${student.firstName}!`,
         html: `
           <h2>Keep up the great driving, ${student.firstName}!</h2>
