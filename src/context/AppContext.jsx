@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '../firebase';
 import {
-  addDoc, collection, collectionGroup, deleteDoc, doc, getDocs, query, updateDoc, where,
+  addDoc, collection, collectionGroup, deleteDoc, doc, getDocs, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 
 const AppContext = createContext(null);
@@ -54,8 +54,8 @@ export function AppProvider({ children }) {
         // Students this user owns
         const ownedSnap = await getDocs(collection(db, 'users', user.id, 'students'));
         const ownedStudents = ownedSnap.docs.map((d) => ({
-          id: d.id,
           ...d.data(),
+          id: d.id,
           ownerId: d.data().ownerId || user.id,
           isOwner: true,
         }));
@@ -71,7 +71,7 @@ export function AppProvider({ children }) {
           const sharedSnap = await getDocs(sharedQuery);
           sharedStudents = sharedSnap.docs
             .filter((d) => d.data().ownerId !== user.id) // safety: don't double-list own students
-            .map((d) => ({ id: d.id, ...d.data(), isOwner: false }));
+            .map((d) => ({ ...d.data(), id: d.id, isOwner: false }));
         } catch (e) {
           console.warn('Failed to load shared students:', e);
         }
@@ -85,7 +85,7 @@ export function AppProvider({ children }) {
             collection(db, 'users', student.ownerId, 'students', student.id, 'logs')
           );
           logsData[student.id] = logsSnap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
+            .map((d) => ({ ...d.data(), id: d.id }))
             .sort((a, b) => new Date(b.date) - new Date(a.date));
         }
         setLogs(logsData);
@@ -114,7 +114,7 @@ export function AppProvider({ children }) {
 
     if (user?.id) {
       try {
-        await addDoc(collection(db, 'users', user.id, 'students'), newStudent);
+        await setDoc(doc(db, 'users', user.id, 'students', id), newStudent);
       } catch (e) {
         console.error('Failed to save student to Firestore:', e);
       }
@@ -134,7 +134,7 @@ export function AppProvider({ children }) {
       try {
         const student = students.find((s) => s.id === studentId);
         const ownerId = student?.ownerId || user.id;
-        await addDoc(collection(db, 'users', ownerId, 'students', studentId, 'logs'), newLog);
+        await setDoc(doc(db, 'users', ownerId, 'students', studentId, 'logs', id), newLog);
       } catch (e) {
         console.error('Failed to save log to Firestore:', e);
       }
