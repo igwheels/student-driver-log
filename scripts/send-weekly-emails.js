@@ -50,7 +50,7 @@ async function main() {
     sends.push(
       sgMail.send({
         to: student.email,
-        from: 'progress@yourdomain.com', // must be a verified SendGrid sender
+        from: process.env.SENDGRID_FROM_EMAIL || 'noreply@studentdriverlog.com', // must be a verified SendGrid sender
         subject: `🚗 Your weekly driving progress, ${student.firstName}!`,
         html: `
           <h2>Keep up the great driving, ${student.firstName}!</h2>
