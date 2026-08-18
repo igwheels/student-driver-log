@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
 } from 'firebase/auth';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 
 /**
  * AUTH WIRING NOTES
@@ -24,8 +25,46 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const completeLogin = (profile) => {
+  const completeLogin = async (profile) => {
     setUser(profile);
+
+    // Check for pending invitations
+    try {
+      const invitationsRef = collection(db, 'invitations');
+      const q = query(invitationsRef, where('email', '==', profile.email), where('accepted', '==', false));
+      const invitationsSnap = await getDocs(q);
+
+      if (invitationsSnap.docs.length > 0) {
+        console.log('Found pending invitations:', invitationsSnap.docs.length);
+
+        // Mark invitations as accepted and grant access
+        for (const invDoc of invitationsSnap.docs) {
+          const inv = invDoc.data();
+          await updateDoc(invDoc.ref, { accepted: true, acceptedAt: new Date().toISOString() });
+
+          // Add user to the student's sharedWith if not already there
+          const studentRef = doc(db, 'users', inv.ownerId, 'students', inv.studentId);
+          const studentSnap = await getDocs(collection(db, 'users', inv.ownerId, 'students'));
+
+          for (const studentDoc of studentSnap.docs) {
+            if (studentDoc.id === inv.studentId) {
+              const student = studentDoc.data();
+              const sharedWith = student.sharedWith || [];
+
+              if (!sharedWith.some(s => s.email === profile.email)) {
+                sharedWith.push({ email: profile.email, addedAt: new Date().toISOString() });
+                await updateDoc(studentRef, { sharedWith });
+              }
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to process invitations:', e);
+      // Don't block login on invitation processing failure
+    }
+
     navigate('/students');
   };
 

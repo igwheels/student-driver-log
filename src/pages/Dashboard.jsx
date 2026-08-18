@@ -3,19 +3,29 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
 import Gauge from '../components/Gauge';
+import ShareModal from '../components/ShareModal';
 import { exportLogPdf } from '../utils/pdfExport';
 
 export default function Dashboard() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { students, getLogs, getTotals, user, deleteStudent, deleteDrive } = useApp();
+  const { students, getLogs, getTotals, user, deleteStudent, deleteDrive, isOwner, unshareStudent } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [celebration, setCelebration] = useState(location.state?.celebrate ?? null);
   const [deleteStep, setDeleteStep] = useState(null);
   const [deleteInput, setDeleteInput] = useState('');
   const [showAllDrives, setShowAllDrives] = useState(false);
   const [deleteDriveId, setDeleteDriveId] = useState(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharedUsers, setSharedUsers] = useState([]);
+
+  // Update shared users when student changes
+  useEffect(() => {
+    if (student) {
+      setSharedUsers(student.sharedWith || []);
+    }
+  }, [student?.id]);
 
   useEffect(() => {
     const handleDeleteClick = () => setDeleteStep('confirm');
@@ -45,6 +55,15 @@ export default function Dashboard() {
     }
   };
 
+  const handleUnshare = async (email) => {
+    try {
+      await unshareStudent(studentId, email);
+      setSharedUsers((prev) => prev.filter((u) => u.email !== email));
+    } catch (e) {
+      console.error('Failed to unshare:', e);
+    }
+  };
+
   if (!student) return <div className="page">Student not found.</div>;
 
   const req = STATE_REQUIREMENTS[student.state];
@@ -56,7 +75,23 @@ export default function Dashboard() {
 
   return (
     <div className="page">
-      <h2 style={{ fontSize: 24 }}>{student.firstName}'s Dashboard</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+        <h2 style={{ fontSize: 24, margin: 0 }}>{student.firstName}'s Dashboard</h2>
+        {!isOwner(studentId) && (
+          <span style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--muted)',
+            backgroundColor: 'var(--bg-secondary)',
+            padding: '4px 8px',
+            borderRadius: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            Shared
+          </span>
+        )}
+      </div>
       <p style={{ color: 'var(--muted)', marginTop: 2, marginBottom: 22 }}>{req.name}</p>
 
       {hasRequirement ? (
@@ -87,7 +122,50 @@ export default function Dashboard() {
         >
           Download Log
         </button>
+        {isOwner(studentId) && (
+          <button className="btn btn-ghost" onClick={() => setShowShareModal(true)}>
+            Share
+          </button>
+        )}
       </div>
+
+      {isOwner(studentId) && sharedUsers.length > 0 && (
+        <div style={{ marginTop: 24, padding: 16, backgroundColor: 'var(--bg-secondary)', borderRadius: 8 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 600, marginTop: 0, marginBottom: 12 }}>Shared with</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {sharedUsers.map((share) => (
+              <div
+                key={share.email}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--bg-primary)',
+                  borderRadius: 6,
+                  fontSize: 14,
+                }}
+              >
+                <span>{share.email}</span>
+                <button
+                  onClick={() => handleUnshare(share.email)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--muted)',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    padding: 0,
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <h3 style={{ fontSize: 17, marginTop: 30, marginBottom: 10 }}>Recent drives</h3>
       {logs.length === 0 ? (
@@ -204,6 +282,21 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {showShareModal && (
+        <ShareModal
+          studentId={studentId}
+          student={student}
+          onClose={() => setShowShareModal(false)}
+          onShare={() => {
+            // Refresh shared users
+            const updatedStudent = students.find((s) => s.id === studentId);
+            if (updatedStudent) {
+              setSharedUsers(updatedStudent.sharedWith || []);
+            }
+          }}
+        />
       )}
     </div>
   );
