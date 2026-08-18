@@ -2,12 +2,18 @@
  * Weekly progress emails — run by .github/workflows/weekly-emails.yml
  * on a Monday-morning schedule via GitHub Actions (no separate server needed).
  *
+ * Sent to everyone with access to the student's dashboard: the student
+ * themselves (student.email, if set), the owner (ownerEmail), and anyone
+ * the student has been shared with (sharedWithEmails) — see shareStudent
+ * in src/context/AppContext.jsx.
+ *
  * Requires:
  *   - Firestore mirroring the app's students + logs
  *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), GMAIL_EMAIL, GMAIL_APP_PASSWORD
  *
  * Firestore structure expected:
- *   users/{uid}/students/{studentId}         -> { firstName, lastName, email, state }
+ *   users/{uid}/students/{studentId}         -> { firstName, lastName, email, state,
+ *                                                 ownerEmail, sharedWithEmails }
  *   users/{uid}/students/{studentId}/logs/*  -> { durationMinutes, timeOfDay }
  */
 import { initializeApp, cert } from 'firebase-admin/app';
@@ -36,7 +42,12 @@ async function main() {
   const sends = [];
   for (const doc of students.docs) {
     const student = doc.data();
-    if (!student.email) continue;
+
+    const recipients = new Set();
+    for (const email of [student.email, student.ownerEmail, ...(student.sharedWithEmails ?? [])]) {
+      if (email) recipients.add(email.trim().toLowerCase());
+    }
+    if (recipients.size === 0) continue;
 
     const logsSnap = await doc.ref.collection('logs').get();
     let total = 0;
@@ -51,31 +62,33 @@ async function main() {
     const pct = req.totalHours > 0 ? Math.min(100, Math.round((total / (req.totalHours * 60)) * 100)) : null;
     const progressLine =
       pct != null
-        ? `You're ${pct}% of the way to your ${req.totalHours}-hour goal.` +
+        ? `${student.firstName} is ${pct}% of the way to the ${req.totalHours}-hour goal.` +
           (req.nightHours > 0 ? ` Night driving: ${fmt(night)} of ${req.nightHours}h.` : '')
-        : 'Your state has no minimum hour requirement — every hour you log is above and beyond!';
+        : `${req.name ?? 'Your state'} has no minimum hour requirement — every hour logged is above and beyond!`;
 
-    sends.push(
-      transporter.sendMail({
-        to: student.email,
-        from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
-        replyTo: process.env.GMAIL_EMAIL,
-        subject: `🚗 Your weekly driving progress, ${student.firstName}!`,
-        text: `Keep up the great driving, ${student.firstName}!
+    for (const to of recipients) {
+      sends.push(
+        transporter.sendMail({
+          to,
+          from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
+          replyTo: process.env.GMAIL_EMAIL,
+          subject: `🚗 Weekly driving progress for ${student.firstName}`,
+          text: `Weekly driving progress for ${student.firstName}
 
 Total supervised hours: ${fmt(total)}
 Night hours: ${fmt(night)}
 ${progressLine}
 
-See you on the road!`,
-        html: `
-          <h2>Keep up the great driving, ${student.firstName}!</h2>
-          <p><strong>Total supervised hours:</strong> ${fmt(total)}</p>
-          <p><strong>Night hours:</strong> ${fmt(night)}</p>
-          <p>${progressLine}</p>
-          <p>See you on the road! 🏁</p>`,
-      })
-    );
+Keep up the great work!`,
+          html: `
+            <h2>Weekly driving progress for ${student.firstName}</h2>
+            <p><strong>Total supervised hours:</strong> ${fmt(total)}</p>
+            <p><strong>Night hours:</strong> ${fmt(night)}</p>
+            <p>${progressLine}</p>
+            <p>Keep up the great work! 🏁</p>`,
+        })
+      );
+    }
   }
 
   const results = await Promise.allSettled(sends);

@@ -106,6 +106,7 @@ export function AppProvider({ children }) {
       ...student,
       ownerId: user?.id,
       ownerName: user?.name ?? '',
+      ownerEmail: user?.email ?? '',
       sharedWith: [],
       sharedWithEmails: [],
       isOwner: true,

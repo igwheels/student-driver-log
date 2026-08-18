@@ -1,6 +1,7 @@
 /**
- * One-time migration: adds ownerId, ownerName, sharedWith, and sharedWithEmails
- * to existing student documents so the sharing feature works on data that
+ * One-time migration: adds ownerId, ownerName, ownerEmail, sharedWith, and
+ * sharedWithEmails to existing student documents so the sharing feature
+ * (and weekly emails to everyone with dashboard access) works on data that
  * predates it. Safe to re-run — already-migrated students are skipped.
  *
  * Usage:
@@ -23,11 +24,13 @@ const authAdmin = getAuth();
 
 async function main() {
   // Build a uid -> display name/email lookup from real Firebase Auth accounts,
-  // so existing students get an accurate ownerName for the "Shared by" label.
+  // so existing students get an accurate ownerName/ownerEmail.
   const userNames = {};
+  const userEmails = {};
   const listUsersResult = await authAdmin.listUsers();
   for (const u of listUsersResult.users) {
     userNames[u.uid] = u.displayName || (u.email ? u.email.split('@')[0] : 'Owner');
+    userEmails[u.uid] = u.email || '';
   }
 
   const usersSnap = await db.collection('users').get();
@@ -40,7 +43,11 @@ async function main() {
     for (const studentDoc of studentsSnap.docs) {
       const student = studentDoc.data();
       const needsMigration =
-        !student.ownerId || !('sharedWith' in student) || !('sharedWithEmails' in student) || !student.ownerName;
+        !student.ownerId ||
+        !('sharedWith' in student) ||
+        !('sharedWithEmails' in student) ||
+        !student.ownerName ||
+        !student.ownerEmail;
 
       if (!needsMigration) {
         console.log(`Already migrated: ${student.firstName} ${student.lastName}`);
@@ -52,6 +59,7 @@ async function main() {
       await studentDoc.ref.update({
         ownerId: student.ownerId || userId,
         ownerName: student.ownerName || userNames[userId] || 'Owner',
+        ownerEmail: student.ownerEmail || userEmails[userId] || '',
         sharedWith,
         sharedWithEmails: student.sharedWithEmails || sharedWith.map((s) => s.email),
       });
