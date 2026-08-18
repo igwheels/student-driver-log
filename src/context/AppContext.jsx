@@ -83,12 +83,21 @@ export function AppProvider({ children }) {
 
         const logsData = {};
         for (const student of allStudents) {
-          const logsSnap = await getDocs(
-            collection(db, 'users', student.ownerId, 'students', student.id, 'logs')
-          );
-          logsData[student.id] = logsSnap.docs
-            .map((d) => ({ ...d.data(), id: d.id }))
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
+          try {
+            const logsSnap = await getDocs(
+              collection(db, 'users', student.ownerId, 'students', student.id, 'logs')
+            );
+            logsData[student.id] = logsSnap.docs
+              .map((d) => ({ ...d.data(), id: d.id }))
+              .sort((a, b) => new Date(b.date) - new Date(a.date));
+          } catch (e) {
+            // Keep whatever was already cached rather than wiping it with an
+            // empty array — a failure loading one student's logs shouldn't
+            // erase previously-synced data for them, or block every other
+            // student in this session from loading at all.
+            console.error(`Failed to load logs for ${student.firstName} ${student.lastName}:`, e);
+            logsData[student.id] = logs[student.id] ?? [];
+          }
         }
         setLogs(logsData);
       } catch (e) {
