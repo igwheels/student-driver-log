@@ -184,6 +184,10 @@ export function AppProvider({ children }) {
 
     if (user?.id) {
       try {
+        // Deleting a document doesn't cascade-delete its subcollections —
+        // remove the logs first or they'd be left orphaned in Firestore.
+        const logsSnap = await getDocs(collection(db, 'users', user.id, 'students', studentId, 'logs'));
+        await Promise.all(logsSnap.docs.map((d) => deleteDoc(d.ref)));
         await deleteDoc(doc(db, 'users', user.id, 'students', studentId));
       } catch (e) {
         console.warn('Failed to delete student from Firestore', e);

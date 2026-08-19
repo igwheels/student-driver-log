@@ -31,11 +31,11 @@ export default function AddStudent() {
       <form onSubmit={handleSave}>
         <div className="field">
           <label>First name</label>
-          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Wren" />
+          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="John" />
         </div>
         <div className="field">
           <label>Last name</label>
-          <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Wheeler" />
+          <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" />
         </div>
         <div className="field">
           <label>Student email</label>
@@ -55,13 +55,13 @@ export default function AddStudent() {
               <>
                 <div className="req-title">
                   {req.name} requires {req.totalHours} supervised hours
-                  {req.nightHours > 0 ? `, ${req.nightHours} at night` : ''}.
+                  {req.nightHours > 0 ? `, ${req.nightHours} at night` : ''}.*
                 </div>
                 {req.note && <div className="req-sub">{req.note}</div>}
               </>
             ) : (
               <div className="req-title">
-                {req.name} does not require a minimum number of supervised driving hours.
+                {req.name} does not require a minimum number of supervised driving hours.*
               </div>
             )}
           </div>
@@ -71,6 +71,20 @@ export default function AddStudent() {
 
         <button type="submit" className="btn btn-primary" style={{ marginTop: 24 }}>Add student</button>
       </form>
+
+      {req && (
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 20 }}>
+          * Requirements sourced from the{' '}
+          <a
+            href="https://www.iihs.org/research-areas/teenagers/graduated-licensing-laws-table"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            IIHS Graduated Licensing Laws table
+          </a>
+          . Laws change — verify with your state DMV.
+        </p>
+      )}
     </div>
   );
 }

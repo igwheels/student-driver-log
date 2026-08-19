@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useApp } from './context/AppContext';
 import Login from './pages/Login';
@@ -7,10 +7,12 @@ import AddStudent from './pages/AddStudent';
 import Dashboard from './pages/Dashboard';
 import DriveTimer from './pages/DriveTimer';
 import LogDrive from './pages/LogDrive';
+import Account from './pages/Account';
 
 const TITLES = {
   '/students': 'Student Drivers',
   '/add-student': 'Add Student Driver',
+  '/account': 'Account',
 };
 
 function RequireAuth({ children }) {
@@ -24,6 +26,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useApp();
+  const [menuOpen, setMenuOpen] = useState(false);
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
   const showTopbar = !isLogin && !isTimer;
@@ -33,8 +36,14 @@ export default function App() {
     : location.pathname.startsWith('/log-drive') ? 'Log a Drive' : 'Student Driver Log');
 
   const handleLogout = () => {
+    setMenuOpen(false);
     logout();
     navigate('/');
+  };
+
+  const handleAccount = () => {
+    setMenuOpen(false);
+    navigate('/account');
   };
 
   return (
@@ -76,22 +85,23 @@ export default function App() {
               ✕
             </button>
           )}
-          <button
-            onClick={handleLogout}
-            style={{
-              background: 'none',
-              border: '1px solid var(--muted)',
-              cursor: 'pointer',
-              color: 'var(--muted)',
-              padding: '6px 12px',
-              borderRadius: 6,
-              fontSize: 14,
-              fontWeight: 500,
-            }}
-            title="Log out"
-          >
-            Log out
-          </button>
+          <div className="menu-wrapper">
+            <button className="menu-btn" onClick={() => setMenuOpen((v) => !v)} title="Menu">
+              ☰
+            </button>
+            {menuOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 10 }}
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="menu-dropdown">
+                  <button onClick={handleAccount}>Account</button>
+                  <button onClick={handleLogout}>Log out</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -102,6 +112,7 @@ export default function App() {
         <Route path="/dashboard/:studentId" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/drive-timer/:studentId" element={<RequireAuth><DriveTimer /></RequireAuth>} />
         <Route path="/log-drive/:studentId" element={<RequireAuth><LogDrive /></RequireAuth>} />
+        <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
       </Routes>
     </div>
   );
