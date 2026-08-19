@@ -33,12 +33,15 @@ async function main() {
     userEmails[u.uid] = u.email || '';
   }
 
-  const usersSnap = await db.collection('users').get();
   let migrated = 0;
 
-  for (const userDoc of usersSnap.docs) {
-    const userId = userDoc.id;
-    const studentsSnap = await userDoc.ref.collection('students').get();
+  // Iterate real Firebase Auth accounts directly, not db.collection('users')
+  // — this app never writes a document at users/{uid} itself, only nested
+  // paths like users/{uid}/students/{id}, so users/{uid} was never a real
+  // document and that collection is always empty.
+  for (const u of listUsersResult.users) {
+    const userId = u.uid;
+    const studentsSnap = await db.collection('users').doc(userId).collection('students').get();
 
     for (const studentDoc of studentsSnap.docs) {
       const student = studentDoc.data();
