@@ -68,7 +68,12 @@ export default function Login() {
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
+      const customParams = { prompt: 'select_account' };
+      // Arrived via a share invitation link — suggest that email in Google's
+      // account picker so they're more likely to end up signed in with the
+      // exact address the dashboard was shared with.
+      if (email.trim()) customParams.login_hint = email.trim();
+      provider.setCustomParameters(customParams);
       const { user } = await signInWithPopup(auth, provider);
       completeLogin({ id: user.uid, name: user.displayName || 'User', email: user.email });
     } catch (err) {
@@ -79,6 +84,8 @@ export default function Login() {
       }
     }
   };
+
+  const invitedEmail = searchParams.get('email');
 
   return (
     <div className="login-screen">
@@ -102,6 +109,11 @@ export default function Login() {
 
       <div style={{ width: '100%', maxWidth: 340 }}>
         <button className="btn btn-ghost" onClick={handleGoogleLogin}>Continue with Google</button>
+        {invitedEmail && (
+          <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
+            Use the Google account for {invitedEmail} to see the shared dashboard.
+          </p>
+        )}
       </div>
     </div>
   );
