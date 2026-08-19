@@ -205,6 +205,18 @@ export function AppProvider({ children }) {
     return { totalMinutes: total, nightMinutes: night };
   };
 
+  const updateStudentEmail = async (studentId, newEmail) => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student || student.ownerId !== user?.id) {
+      throw new Error('Only the owner can edit a student');
+    }
+    const email = newEmail.trim();
+
+    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, email } : s)));
+
+    await updateDoc(doc(db, 'users', user.id, 'students', studentId), { email });
+  };
+
   const deleteStudent = async (studentId) => {
     setStudents((prev) => prev.filter((s) => s.id !== studentId));
     setLogs((prev) => {
@@ -332,6 +344,7 @@ export function AppProvider({ children }) {
         addLog,
         getLogs,
         getTotals,
+        updateStudentEmail,
         deleteStudent,
         deleteDrive,
         hydrated,

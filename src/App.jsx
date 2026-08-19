@@ -8,11 +8,13 @@ import Dashboard from './pages/Dashboard';
 import DriveTimer from './pages/DriveTimer';
 import LogDrive from './pages/LogDrive';
 import Account from './pages/Account';
+import ManageStudents from './pages/ManageStudents';
 
 const TITLES = {
   '/students': 'Student Drivers',
   '/add-student': 'Add Student Driver',
   '/account': 'Account',
+  '/manage-students': 'Manage Students',
 };
 
 function RequireAuth({ children }) {
@@ -46,6 +48,11 @@ export default function App() {
     navigate('/account');
   };
 
+  const handleManageStudents = () => {
+    setMenuOpen(false);
+    navigate('/manage-students');
+  };
+
   return (
     <div className="app-shell">
       {showTopbar && (
@@ -63,28 +70,6 @@ export default function App() {
           </button>
           <span className="title">{title}</span>
           <div style={{ flex: 1 }} />
-          {isDashboard && (
-            <button
-              className="delete-btn"
-              onClick={() => window.dispatchEvent(new CustomEvent('openDeletePrompt'))}
-              style={{
-                background: 'none',
-                border: '1px solid var(--muted)',
-                cursor: 'pointer',
-                width: 32,
-                height: 32,
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 18,
-                marginRight: 8,
-              }}
-              title="Delete student records"
-            >
-              ✕
-            </button>
-          )}
           <div className="menu-wrapper">
             <button className="menu-btn" onClick={() => setMenuOpen((v) => !v)} title="Menu">
               ☰
@@ -97,6 +82,7 @@ export default function App() {
                 />
                 <div className="menu-dropdown">
                   <button onClick={handleAccount}>Account</button>
+                  <button onClick={handleManageStudents}>Manage students</button>
                   <button onClick={handleLogout}>Log out</button>
                 </div>
               </>
@@ -113,6 +99,7 @@ export default function App() {
         <Route path="/drive-timer/:studentId" element={<RequireAuth><DriveTimer /></RequireAuth>} />
         <Route path="/log-drive/:studentId" element={<RequireAuth><LogDrive /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
+        <Route path="/manage-students" element={<RequireAuth><ManageStudents /></RequireAuth>} />
       </Routes>
     </div>
   );
