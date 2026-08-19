@@ -16,8 +16,8 @@ const TITLES = {
 };
 
 function RequireAuth({ children }) {
-  const { user, hydrated } = useApp();
-  if (!hydrated) return null;
+  const { user, hydrated, authChecked } = useApp();
+  if (!hydrated || !authChecked) return null;
   if (!user) return <Navigate to="/" replace />;
   return children;
 }

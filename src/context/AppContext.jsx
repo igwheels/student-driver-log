@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
   addDoc, collection, collectionGroup, deleteDoc, doc, getDocs, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
@@ -15,6 +16,36 @@ export function AppProvider({ children }) {
   const [logs, setLogs] = useState({});
   const [hydrated, setHydrated] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Keep app-level user state in sync with Firebase's actual auth session,
+  // instead of relying solely on the one-time setUser() call at login. Without
+  // this, the app's session and Firebase's real session can drift apart (e.g.
+  // across a long-idle tab or token refresh edge case), so the UI still
+  // thinks you're signed in as the owner while Firestore's rules check the
+  // real session and reject writes with a permission-denied that has no
+  // visible cause. This also means a returning visitor with an existing
+  // Firebase session no longer has to sign in again just because the app's
+  // own state reset on reload.
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser((prev) =>
+          prev && prev.id === firebaseUser.uid
+            ? prev
+            : {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User'),
+                email: firebaseUser.email,
+              }
+        );
+      } else {
+        setUser(null);
+      }
+      setAuthChecked(true);
+    });
+    return unsubscribe;
+  }, []);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -304,6 +335,7 @@ export function AppProvider({ children }) {
         deleteStudent,
         deleteDrive,
         hydrated,
+        authChecked,
         syncing,
         isOwner,
         shareStudent,
@@ -319,6 +351,10 @@ export const useApp = () => {
   const context = useContext(AppContext);
   return {
     ...context,
-    logout: () => context.setUser(null),
+    // signOut() triggers onAuthStateChanged(null), which is what actually
+    // clears user state now — calling setUser(null) alone would leave
+    // Firebase's real session active, and the listener would just set it
+    // right back on its next check.
+    logout: () => signOut(auth),
   };
 };
