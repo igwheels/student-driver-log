@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { auth } from '../firebase';
+import { requestLocationPermission } from '../utils/geo';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -33,6 +34,9 @@ export default function Login() {
 
   const completeLogin = (profile) => {
     setUser(profile);
+    // Prompt for location access now, so it's already resolved by the time
+    // a drive timer needs live GPS to estimate mileage.
+    requestLocationPermission();
     navigate('/students');
   };
 
