@@ -36,7 +36,9 @@ export default function LogDrive() {
   const [endStr, setEndStr] = useState(toTimeInputValue(initialEnd));
   const [timeOfDay, setTimeOfDay] = useState(guessTimeOfDay(initialStart));
   const [type, setType] = useState('local');
-  const [distance, setDistance] = useState('');
+  const [distance, setDistance] = useState(
+    prefill?.distanceMiles != null ? String(prefill.distanceMiles) : ''
+  );
   const [error, setError] = useState('');
 
   const { startDate, endDate, durationMinutes } = useMemo(() => {
@@ -117,7 +119,12 @@ export default function LogDrive() {
         </div>
 
         <div className="field">
-          <label>Distance (miles, optional)</label>
+          <label>
+            Distance (miles, optional)
+            {prefill?.distanceMiles != null && (
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}> — filled from GPS, edit if needed</span>
+            )}
+          </label>
           <input type="number" step="0.1" min="0" placeholder="e.g. 12.5" value={distance}
                  onChange={(e) => setDistance(e.target.value)} />
         </div>
