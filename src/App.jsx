@@ -9,6 +9,7 @@ import DriveTimer from './pages/DriveTimer';
 import LogDrive from './pages/LogDrive';
 import Account from './pages/Account';
 import ManageStudents from './pages/ManageStudents';
+import ShareButton from './components/ShareButton';
 
 const TITLES = {
   '/students': 'Student Drivers',
@@ -70,6 +71,7 @@ export default function App() {
           </button>
           <span className="title">{title}</span>
           <div style={{ flex: 1 }} />
+          <ShareButton title={title} />
           <div className="menu-wrapper">
             <button className="menu-btn" onClick={() => setMenuOpen((v) => !v)} title="Menu">
               ☰
