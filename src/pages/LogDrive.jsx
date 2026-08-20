@@ -119,12 +119,7 @@ export default function LogDrive() {
         </div>
 
         <div className="field">
-          <label>
-            Distance (miles, optional)
-            {prefill?.distanceMiles != null && (
-              <span style={{ color: 'var(--muted)', fontWeight: 400 }}> — filled from GPS, edit if needed</span>
-            )}
-          </label>
+          <label>Distance (miles)</label>
           <input type="number" step="0.1" min="0" placeholder="e.g. 12.5" value={distance}
                  onChange={(e) => setDistance(e.target.value)} />
         </div>
