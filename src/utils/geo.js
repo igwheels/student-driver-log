@@ -30,14 +30,20 @@ export function watchLocationPermissionStatus(onChange) {
   }
 
   let status = null;
-  navigator.permissions
-    .query({ name: 'geolocation' })
-    .then((result) => {
-      status = result;
-      onChange(status.state);
-      status.onchange = () => onChange(status.state);
-    })
-    .catch(() => onChange('unsupported'));
+  try {
+    navigator.permissions
+      .query({ name: 'geolocation' })
+      .then((result) => {
+        status = result;
+        onChange(status.state);
+        status.onchange = () => onChange(status.state);
+      })
+      .catch(() => onChange('unsupported'));
+  } catch {
+    // Some browsers throw synchronously for an unsupported permission name
+    // rather than rejecting the promise.
+    onChange('unsupported');
+  }
 
   return () => {
     if (status) status.onchange = null;
