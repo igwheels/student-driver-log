@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { startMileageTracking } from '../utils/geo';
+import { keepScreenAwake } from '../utils/device';
 
 export default function DriveTimer() {
   const { studentId } = useParams();
@@ -9,8 +10,9 @@ export default function DriveTimer() {
   const [elapsed, setElapsed] = useState(0);
   const [miles, setMiles] = useState(0);
   const interval = useRef(null);
-  const trackingRef = useRef({ miles: 0, start: null, end: null });
+  const trackingRef = useRef({ miles: 0, start: null, end: null, route: [] });
   const stopTracking = useRef(null);
+  const releaseWakeLock = useRef(null);
 
   useEffect(() => {
     interval.current = setInterval(() => {
@@ -20,9 +22,11 @@ export default function DriveTimer() {
       trackingRef.current = update;
       setMiles(update.miles);
     });
+    releaseWakeLock.current = keepScreenAwake();
     return () => {
       clearInterval(interval.current);
       stopTracking.current?.();
+      releaseWakeLock.current?.();
     };
   }, [startTime]);
 
@@ -34,7 +38,7 @@ export default function DriveTimer() {
     clearInterval(interval.current);
     stopTracking.current?.();
     const endTime = new Date();
-    const { miles: trackedMiles, start, end } = trackingRef.current;
+    const { miles: trackedMiles, start, end, route } = trackingRef.current;
     navigate(`/log-drive/${studentId}`, {
       state: {
         prefill: {
@@ -43,6 +47,7 @@ export default function DriveTimer() {
           distanceMiles: trackedMiles > 0 ? Number(trackedMiles.toFixed(1)) : null,
           startLocation: start,
           endLocation: end,
+          route: route && route.length > 1 ? route : null,
         },
       },
       replace: true,
@@ -60,6 +65,9 @@ export default function DriveTimer() {
         <div className="timer-miles mono">{miles.toFixed(1)} mi (GPS estimate)</div>
       )}
       <button className="ignition-btn" onClick={endDrive}>End Drive</button>
+      <p className="timer-gps-hint">
+        Keep this screen open for accurate GPS mileage — tracking pauses if you switch apps or lock your phone.
+      </p>
     </div>
   );
 }
