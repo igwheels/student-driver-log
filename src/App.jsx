@@ -9,7 +9,10 @@ import DriveTimer from './pages/DriveTimer';
 import LogDrive from './pages/LogDrive';
 import Account from './pages/Account';
 import ManageStudents from './pages/ManageStudents';
+import Snapshot from './pages/Snapshot';
 import ShareButton from './components/ShareButton';
+import { STATE_REQUIREMENTS } from './data/stateRequirements';
+import { buildDashboardSnapshotUrl } from './utils/snapshot';
 
 const TITLES = {
   '/students': 'Student Drivers',
@@ -28,15 +31,38 @@ function RequireAuth({ children }) {
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useApp();
+  const { logout, students, getTotals } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
-  const showTopbar = !isLogin && !isTimer;
+  const isSnapshot = location.pathname.startsWith('/snapshot');
+  const showTopbar = !isLogin && !isTimer && !isSnapshot;
   const isDashboard = location.pathname.startsWith('/dashboard');
   const title = TITLES[location.pathname] ||
     (isDashboard ? 'Dashboard'
     : location.pathname.startsWith('/log-drive') ? 'Log a Drive' : 'Student Driver Log');
+
+  // On a student's dashboard, share a read-only snapshot of their progress
+  // instead of the app's own link.
+  const dashboardStudentId = isDashboard ? location.pathname.split('/')[2] : null;
+  const dashboardStudent = dashboardStudentId ? students.find((s) => s.id === dashboardStudentId) : null;
+  let shareProps = { title };
+  if (dashboardStudent) {
+    const req = STATE_REQUIREMENTS[dashboardStudent.state];
+    const { totalMinutes, nightMinutes } = getTotals(dashboardStudentId);
+    shareProps = {
+      title: `${dashboardStudent.firstName}'s progress`,
+      text: `Check out ${dashboardStudent.firstName}'s progress…`,
+      url: buildDashboardSnapshotUrl({
+        studentFirstName: dashboardStudent.firstName,
+        requirementName: req.name,
+        totalMinutes,
+        totalGoalMinutes: req.totalHours * 60,
+        nightMinutes,
+        nightGoalMinutes: req.nightHours * 60,
+      }),
+    };
+  }
 
   const handleLogout = () => {
     setMenuOpen(false);
@@ -71,7 +97,7 @@ export default function App() {
           </button>
           <span className="title">{title}</span>
           <div style={{ flex: 1 }} />
-          <ShareButton title={title} />
+          <ShareButton {...shareProps} />
           <div className="menu-wrapper">
             <button className="menu-btn" onClick={() => setMenuOpen((v) => !v)} title="Menu">
               ☰
@@ -95,6 +121,7 @@ export default function App() {
 
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/snapshot" element={<Snapshot />} />
         <Route path="/students" element={<RequireAuth><Students /></RequireAuth>} />
         <Route path="/add-student" element={<RequireAuth><AddStudent /></RequireAuth>} />
         <Route path="/dashboard/:studentId" element={<RequireAuth><Dashboard /></RequireAuth>} />
