@@ -470,6 +470,18 @@ a { color: inherit; }
 .modal-emoji { font-size: 42px; margin-bottom: 8px; }
 .modal-text { font-size: 17px; font-weight: 600; line-height: 1.5; }
 
+/* ---------- Shared snapshot (public, read-only) ---------- */
+.snapshot-page { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.snapshot-logo { width: 56px; height: 56px; border-radius: 12px; margin-bottom: 20px; }
+.snapshot-badge {
+  margin-top: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 @media (max-width: 420px) {
   .timer-readout { font-size: 52px; }
   .ignition-btn { width: 150px; height: 150px; }
