@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
 import Gauge from '../components/Gauge';
 import ShareModal from '../components/ShareModal';
+import DriveMap from '../components/DriveMap';
 import { exportLogPdf } from '../utils/pdfExport';
 
 export default function Dashboard() {
@@ -157,11 +158,16 @@ export default function Dashboard() {
                 onClick={() => setDeleteDriveId(l.id)}
                 style={{ cursor: 'pointer' }}
               >
-                <div>
-                  <div className="date">{l.date}</div>
-                  <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}</div>
+                <div className="ledger-row-main">
+                  <div>
+                    <div className="date">{l.date}</div>
+                    <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}</div>
+                  </div>
+                  <div className="duration mono">{fmtDuration(l.durationMinutes)}</div>
                 </div>
-                <div className="duration mono">{fmtDuration(l.durationMinutes)}</div>
+                {l.startLocation && l.endLocation && (
+                  <DriveMap start={l.startLocation} end={l.endLocation} />
+                )}
               </div>
             ))}
           </div>

@@ -304,17 +304,29 @@ a { color: inherit; }
 .ledger { margin-top: 10px; }
 .ledger-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   padding: 13px 14px;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   margin-bottom: 8px;
 }
+.ledger-row-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .ledger-row .date { font-weight: 700; font-size: 14px; }
 .ledger-row .meta { color: var(--muted); font-size: 12px; margin-top: 2px; text-transform: capitalize; }
 .ledger-row .duration { font-family: var(--font-mono); font-weight: 700; color: var(--blue); }
+
+.drive-map {
+  height: 120px;
+  border-radius: var(--radius-sm);
+  margin-top: 10px;
+  overflow: hidden;
+  cursor: default;
+}
 
 /* ---------- Timer (trip computer) ---------- */
 .timer-screen {
