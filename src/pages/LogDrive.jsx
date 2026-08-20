@@ -21,25 +21,41 @@ function guessTimeOfDay(d) {
 }
 
 export default function LogDrive() {
-  const { studentId } = useParams();
+  const { studentId, logId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addLog } = useApp();
+  const { addLog, updateLog, deleteDrive, getLogs } = useApp();
   const prefill = location.state?.prefill;
 
+  const isEditing = Boolean(logId);
+  const existingLog = isEditing ? getLogs(studentId).find((l) => l.id === logId) : null;
+
   const now = new Date();
-  const initialStart = prefill ? new Date(prefill.startTime) : now;
-  const initialEnd = prefill ? new Date(prefill.endTime) : now;
+  const initialStart = existingLog
+    ? new Date(existingLog.startTime)
+    : prefill
+    ? new Date(prefill.startTime)
+    : now;
+  const initialEnd = existingLog
+    ? new Date(existingLog.endTime)
+    : prefill
+    ? new Date(prefill.endTime)
+    : now;
 
   const [dateStr, setDateStr] = useState(toDateInputValue(initialStart));
   const [startStr, setStartStr] = useState(toTimeInputValue(initialStart));
   const [endStr, setEndStr] = useState(toTimeInputValue(initialEnd));
-  const [timeOfDay, setTimeOfDay] = useState(guessTimeOfDay(initialStart));
-  const [type, setType] = useState('local');
+  const [timeOfDay, setTimeOfDay] = useState(existingLog?.timeOfDay ?? guessTimeOfDay(initialStart));
+  const [type, setType] = useState(existingLog?.type ?? 'local');
   const [distance, setDistance] = useState(
-    prefill?.distanceMiles != null ? String(prefill.distanceMiles) : ''
+    existingLog?.distanceMiles != null
+      ? String(existingLog.distanceMiles)
+      : prefill?.distanceMiles != null
+      ? String(prefill.distanceMiles)
+      : ''
   );
   const [error, setError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { startDate, endDate, durationMinutes } = useMemo(() => {
     const sd = new Date(`${dateStr}T${startStr}:00`);
@@ -51,13 +67,17 @@ export default function LogDrive() {
 
   const fmtDuration = `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`;
 
+  if (isEditing && !existingLog) {
+    return <div className="page">Drive not found.</div>;
+  }
+
   const handleSave = (e) => {
     e.preventDefault();
     setError('');
     if (durationMinutes <= 0) return setError('End time must be after start time.');
     if (distance && isNaN(parseFloat(distance))) return setError('Distance must be a number of miles.');
 
-    addLog(studentId, {
+    const fields = {
       date: dateStr,
       startTime: startDate.toISOString(),
       endTime: endDate.toISOString(),
@@ -65,16 +85,29 @@ export default function LogDrive() {
       timeOfDay,
       type,
       distanceMiles: distance ? parseFloat(distance) : null,
-      startLocation: prefill?.startLocation ?? null,
-      endLocation: prefill?.endLocation ?? null,
-    });
+    };
 
-    navigate(`/dashboard/${studentId}`, { state: { celebrate: randomEncouragement() }, replace: true });
+    if (isEditing) {
+      updateLog(studentId, logId, fields);
+      navigate(`/dashboard/${studentId}`, { replace: true });
+    } else {
+      addLog(studentId, {
+        ...fields,
+        startLocation: prefill?.startLocation ?? null,
+        endLocation: prefill?.endLocation ?? null,
+      });
+      navigate(`/dashboard/${studentId}`, { state: { celebrate: randomEncouragement() }, replace: true });
+    }
+  };
+
+  const handleDelete = () => {
+    deleteDrive(studentId, logId);
+    navigate(`/dashboard/${studentId}`, { replace: true });
   };
 
   return (
     <div className="page">
-      <h2 style={{ fontSize: 20, marginBottom: 6 }}>Log a drive</h2>
+      <h2 style={{ fontSize: 20, marginBottom: 6 }}>{isEditing ? 'Edit drive' : 'Log a drive'}</h2>
       <form onSubmit={handleSave}>
         <div className="field">
           <label>Date</label>
@@ -128,8 +161,37 @@ export default function LogDrive() {
 
         {error && <p style={{ color: '#D8503F', fontSize: 13, marginTop: 14 }}>{error}</p>}
 
-        <button type="submit" className="btn btn-primary" style={{ marginTop: 24 }}>Save drive</button>
+        <button type="submit" className="btn btn-primary" style={{ marginTop: 24 }}>
+          {isEditing ? 'Save changes' : 'Save drive'}
+        </button>
+
+        {isEditing && (
+          <button
+            type="button"
+            className="btn"
+            style={{ marginTop: 12, background: 'var(--danger)', color: 'var(--white)' }}
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Delete this drive
+          </button>
+        )}
       </form>
+
+      {showDeleteConfirm && (
+        <div className="modal-backdrop" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-text">Delete this drive?</div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowDeleteConfirm(false)}>
+                No
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleDelete}>
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -192,6 +192,25 @@ export function AppProvider({ children }) {
     }
   };
 
+  const updateLog = async (studentId, logId, changes) => {
+    setLogs((prev) => ({
+      ...prev,
+      [studentId]: (prev[studentId] ?? []).map((log) =>
+        log.id === logId ? { ...log, ...changes } : log
+      ),
+    }));
+
+    if (user?.id) {
+      try {
+        const student = students.find((s) => s.id === studentId);
+        const ownerId = student?.ownerId || user.id;
+        await updateDoc(doc(db, 'users', ownerId, 'students', studentId, 'logs', logId), changes);
+      } catch (e) {
+        console.error('Failed to update log in Firestore:', e);
+      }
+    }
+  };
+
   const getLogs = (studentId) => logs[studentId] ?? [];
 
   const getTotals = (studentId) => {
@@ -342,6 +361,7 @@ export function AppProvider({ children }) {
         students,
         addStudent,
         addLog,
+        updateLog,
         getLogs,
         getTotals,
         updateStudentEmail,
