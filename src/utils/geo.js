@@ -20,15 +20,11 @@ export function haversineMiles(lat1, lon1, lat2, lon2) {
 
 export function requestLocationPermission() {
   if (!navigator.geolocation) return;
-  // Use watchPosition (rather than a one-shot getCurrentPosition) so the
-  // browser recognizes this as an ongoing-use request — that's what gets
-  // Chrome/Safari to offer "Allow while using the app" vs. "Allow once"
-  // instead of a plain Allow/Block prompt. Triggering it now, right after
-  // login, means it's already resolved by the time a drive timer needs
-  // live position updates.
-  const watchId = navigator.geolocation.watchPosition(
-    () => navigator.geolocation.clearWatch(watchId),
-    () => navigator.geolocation.clearWatch(watchId),
+  // Triggers the browser's permission prompt now, so it's already granted
+  // (or denied) by the time a drive timer needs live position updates.
+  navigator.geolocation.getCurrentPosition(
+    () => {},
+    () => {},
     { enableHighAccuracy: false, timeout: 5000 }
   );
 }
