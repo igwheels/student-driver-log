@@ -18,6 +18,32 @@ export function haversineMiles(lat1, lon1, lat2, lon2) {
   return EARTH_RADIUS_MILES * c;
 }
 
+/**
+ * Reads the current geolocation permission state ('granted' | 'denied' |
+ * 'prompt' | 'unsupported') and calls onChange with it whenever it changes.
+ * Returns an unsubscribe function.
+ */
+export function watchLocationPermissionStatus(onChange) {
+  if (!navigator.permissions?.query) {
+    onChange('unsupported');
+    return () => {};
+  }
+
+  let status = null;
+  navigator.permissions
+    .query({ name: 'geolocation' })
+    .then((result) => {
+      status = result;
+      onChange(status.state);
+      status.onchange = () => onChange(status.state);
+    })
+    .catch(() => onChange('unsupported'));
+
+  return () => {
+    if (status) status.onchange = null;
+  };
+}
+
 export function requestLocationPermission() {
   if (!navigator.geolocation) return;
   // Triggers the browser's permission prompt now, so it's already granted
