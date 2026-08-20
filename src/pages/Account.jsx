@@ -118,6 +118,9 @@ export default function Account() {
 
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
         <h3 style={{ fontSize: 16, marginBottom: 10 }}>Location access</h3>
+        {!locationStatus && (
+          <p style={{ fontSize: 14, color: 'var(--muted)' }}>Checking…</p>
+        )}
         {locationStatus && (
           <>
             <p style={{ fontSize: 14, marginBottom: 4 }}>
