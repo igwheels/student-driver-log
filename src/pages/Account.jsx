@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { auth } from '../firebase';
@@ -10,14 +10,29 @@ import {
   reauthenticateWithPopup,
   GoogleAuthProvider,
 } from 'firebase/auth';
+import { watchLocationPermissionStatus, requestLocationPermission } from '../utils/geo';
 
 const DELETE_PHRASE = 'Delete this account and all its dashboards forever.';
+
+const LOCATION_STATUS_INFO = {
+  granted: { label: 'Allowed', color: 'var(--success)', hint: 'Drive mileage will be estimated from GPS.' },
+  denied: {
+    label: 'Blocked',
+    color: 'var(--danger)',
+    hint: 'Mileage won’t auto-fill. Allow location for this site in your browser settings to re-enable it.',
+  },
+  prompt: { label: 'Not yet asked', color: 'var(--muted)', hint: 'You’ll be asked to allow it below.' },
+  unsupported: { label: 'Unavailable', color: 'var(--muted)', hint: 'This browser doesn’t support checking location permission status.' },
+};
 
 export default function Account() {
   const { user, students, deleteStudent, logout } = useApp();
   const navigate = useNavigate();
 
   const [resetStatus, setResetStatus] = useState('');
+
+  const [locationStatus, setLocationStatus] = useState(null);
+  useEffect(() => watchLocationPermissionStatus(setLocationStatus), []);
 
   const [deleteInput, setDeleteInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
@@ -99,6 +114,28 @@ export default function Account() {
           Send password reset email
         </button>
         {resetStatus && <p style={{ fontSize: 13, marginTop: 10, color: 'var(--muted)' }}>{resetStatus}</p>}
+      </section>
+
+      <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
+        <h3 style={{ fontSize: 16, marginBottom: 10 }}>Location access</h3>
+        {locationStatus && (
+          <>
+            <p style={{ fontSize: 14, marginBottom: 4 }}>
+              Status:{' '}
+              <span style={{ fontWeight: 700, color: LOCATION_STATUS_INFO[locationStatus].color }}>
+                {LOCATION_STATUS_INFO[locationStatus].label}
+              </span>
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+              {LOCATION_STATUS_INFO[locationStatus].hint}
+            </p>
+            {locationStatus === 'prompt' && (
+              <button className="btn btn-outline" onClick={requestLocationPermission}>
+                Allow location access
+              </button>
+            )}
+          </>
+        )}
       </section>
 
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
