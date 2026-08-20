@@ -65,6 +65,8 @@ export default function LogDrive() {
       timeOfDay,
       type,
       distanceMiles: distance ? parseFloat(distance) : null,
+      startLocation: prefill?.startLocation ?? null,
+      endLocation: prefill?.endLocation ?? null,
     });
 
     navigate(`/dashboard/${studentId}`, { state: { celebrate: randomEncouragement() }, replace: true });
