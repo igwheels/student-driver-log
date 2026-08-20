@@ -158,7 +158,7 @@ export default function Dashboard() {
                   <div className="duration mono">{fmtDuration(l.durationMinutes)}</div>
                 </div>
                 {l.startLocation && l.endLocation && (
-                  <DriveMap start={l.startLocation} end={l.endLocation} />
+                  <DriveMap start={l.startLocation} end={l.endLocation} route={l.route} />
                 )}
               </div>
             ))}

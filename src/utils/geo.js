@@ -62,24 +62,27 @@ export function requestLocationPermission() {
 }
 
 /**
- * Tracks cumulative miles traveled and the first/last known position via
- * navigator.geolocation.watchPosition. Returns a stop() function;
- * onUpdate({ miles, start, end }) fires as new fixes arrive, where start
- * and end are { lat, lng } once at least one good fix has come in.
+ * Tracks cumulative miles traveled — as the sum of the distance between each
+ * consecutive GPS fix along the way, not a straight line from start to end —
+ * plus the full sequence of fixes, via navigator.geolocation.watchPosition.
+ * Returns a stop() function; onUpdate({ miles, start, end, route }) fires as
+ * new fixes arrive, where start/end are { lat, lng } and route is the full
+ * [{ lat, lng }, ...] path, once at least one good fix has come in.
  */
 export function startMileageTracking(onUpdate) {
   if (!navigator.geolocation) return () => {};
 
   let totalMiles = 0;
   let lastFix = null;
-  let startFix = null;
+  const route = [];
   let watchId = null;
 
   const report = () =>
     onUpdate({
       miles: totalMiles,
-      start: startFix ? { lat: startFix.latitude, lng: startFix.longitude } : null,
-      end: lastFix ? { lat: lastFix.latitude, lng: lastFix.longitude } : null,
+      start: route[0] ?? null,
+      end: route[route.length - 1] ?? null,
+      route: route.slice(),
     });
 
   watchId = navigator.geolocation.watchPosition(
@@ -90,13 +93,13 @@ export function startMileageTracking(onUpdate) {
 
       if (lastFix) {
         const delta = haversineMiles(lastFix.latitude, lastFix.longitude, latitude, longitude);
-        if (delta <= MAX_JUMP_MILES) {
-          totalMiles += delta;
-        }
-      } else {
-        startFix = { latitude, longitude };
+        // Also skip an implausible jump between fixes — it never happened,
+        // so it shouldn't distort the mileage total or appear in the route.
+        if (delta > MAX_JUMP_MILES) return;
+        totalMiles += delta;
       }
       lastFix = { latitude, longitude };
+      route.push({ lat: latitude, lng: longitude });
       report();
     },
     () => {},
