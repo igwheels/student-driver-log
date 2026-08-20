@@ -3,6 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { randomEncouragement } from '../data/encouragements';
 import DriveMap from '../components/DriveMap';
+import { shareContent } from '../utils/share';
+import { buildLogSnapshotUrl } from '../utils/snapshot';
 
 const DRIVE_TYPES = [
   { label: 'Local', value: 'local' },
@@ -25,11 +27,12 @@ export default function LogDrive() {
   const { studentId, logId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { addLog, updateLog, deleteDrive, getLogs } = useApp();
+  const { addLog, updateLog, deleteDrive, getLogs, students } = useApp();
   const prefill = location.state?.prefill;
 
   const isEditing = Boolean(logId);
   const existingLog = isEditing ? getLogs(studentId).find((l) => l.id === logId) : null;
+  const student = students.find((s) => s.id === studentId);
 
   const now = new Date();
   const initialStart = existingLog
@@ -57,6 +60,7 @@ export default function LogDrive() {
   );
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [bragCopied, setBragCopied] = useState(false);
 
   const { startDate, endDate, durationMinutes } = useMemo(() => {
     const sd = new Date(`${dateStr}T${startStr}:00`);
@@ -105,6 +109,34 @@ export default function LogDrive() {
   const handleDelete = () => {
     deleteDrive(studentId, logId);
     navigate(`/dashboard/${studentId}`, { replace: true });
+  };
+
+  const handleBrag = () => {
+    if (!student || !existingLog) return;
+    const url = buildLogSnapshotUrl({
+      studentFirstName: student.firstName,
+      date: existingLog.date,
+      durationMinutes: existingLog.durationMinutes,
+      type: existingLog.type,
+      timeOfDay: existingLog.timeOfDay,
+      distanceMiles: existingLog.distanceMiles,
+      startLocation: existingLog.startLocation,
+      endLocation: existingLog.endLocation,
+      route: existingLog.route,
+    });
+    shareContent(
+      {
+        title: `${student.firstName}'s drive`,
+        text: `${student.firstName} just completed another drive!`,
+        url,
+      },
+      {
+        onCopied: () => {
+          setBragCopied(true);
+          setTimeout(() => setBragCopied(false), 2000);
+        },
+      }
+    );
   };
 
   return (
@@ -170,7 +202,18 @@ export default function LogDrive() {
 
         {error && <p style={{ color: '#D8503F', fontSize: 13, marginTop: 14 }}>{error}</p>}
 
-        <button type="submit" className="btn btn-primary" style={{ marginTop: 24 }}>
+        {isEditing && existingLog && (
+          <>
+            <button type="button" className="btn btn-outline" style={{ marginTop: 24 }} onClick={handleBrag}>
+              Brag on your student
+            </button>
+            {bragCopied && (
+              <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>Link copied</p>
+            )}
+          </>
+        )}
+
+        <button type="submit" className="btn btn-primary" style={{ marginTop: isEditing && existingLog ? 12 : 24 }}>
           {isEditing ? 'Save changes' : 'Save drive'}
         </button>
 

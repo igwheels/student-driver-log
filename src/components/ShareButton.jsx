@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getSharePlatform } from '../utils/device';
+import { shareContent } from '../utils/share';
 
 function IOSShareIcon() {
   return (
@@ -37,29 +38,16 @@ export default function ShareButton({ title, text, url }) {
   const platform = getSharePlatform();
   const [copied, setCopied] = useState(false);
 
-  const handleShare = async () => {
-    const shareUrl = url || window.location.href;
-    const shareData = { title: title || document.title, text, url: shareUrl };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        if (err?.name !== 'AbortError') {
-          console.error('Share failed:', err);
-        }
+  const handleShare = () =>
+    shareContent(
+      { title, text, url },
+      {
+        onCopied: () => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        },
       }
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Copy to clipboard failed:', err);
-    }
-  };
+    );
 
   const Icon = platform === 'ios' ? IOSShareIcon : platform === 'android' ? AndroidShareIcon : GenericShareIcon;
 
