@@ -11,11 +11,10 @@ export default function Dashboard() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { students, getLogs, getTotals, user, deleteDrive, isOwner, unshareStudent } = useApp();
+  const { students, getLogs, getTotals, user, isOwner, unshareStudent } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [celebration, setCelebration] = useState(location.state?.celebrate ?? null);
   const [showAllDrives, setShowAllDrives] = useState(false);
-  const [deleteDriveId, setDeleteDriveId] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharedUsers, setSharedUsers] = useState([]);
 
@@ -25,13 +24,6 @@ export default function Dashboard() {
       setSharedUsers(student.sharedWith || []);
     }
   }, [student?.id]);
-
-  const handleDeleteDriveConfirm = () => {
-    if (deleteDriveId) {
-      deleteDrive(studentId, deleteDriveId);
-      setDeleteDriveId(null);
-    }
-  };
 
   const handleUnshare = async (email) => {
     try {
@@ -155,7 +147,7 @@ export default function Dashboard() {
               <div
                 key={l.id}
                 className="ledger-row"
-                onClick={() => setDeleteDriveId(l.id)}
+                onClick={() => navigate(`/log-drive/${studentId}/${l.id}`)}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="ledger-row-main">
@@ -203,22 +195,6 @@ export default function Dashboard() {
             <button className="btn btn-primary" style={{ marginTop: 18 }} onClick={() => setCelebration(null)}>
               Keep going!
             </button>
-          </div>
-        </div>
-      )}
-
-      {deleteDriveId && (
-        <div className="modal-backdrop" onClick={() => setDeleteDriveId(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-text">Delete this drive?</div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDeleteDriveId(null)}>
-                No
-              </button>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleDeleteDriveConfirm}>
-                Yes
-              </button>
-            </div>
           </div>
         </div>
       )}

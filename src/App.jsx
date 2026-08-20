@@ -100,6 +100,7 @@ export default function App() {
         <Route path="/dashboard/:studentId" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/drive-timer/:studentId" element={<RequireAuth><DriveTimer /></RequireAuth>} />
         <Route path="/log-drive/:studentId" element={<RequireAuth><LogDrive /></RequireAuth>} />
+        <Route path="/log-drive/:studentId/:logId" element={<RequireAuth><LogDrive /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
         <Route path="/manage-students" element={<RequireAuth><ManageStudents /></RequireAuth>} />
       </Routes>
