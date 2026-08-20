@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { randomEncouragement } from '../data/encouragements';
+import DriveMap from '../components/DriveMap';
 
 const DRIVE_TYPES = [
   { label: 'Local', value: 'local' },
@@ -95,6 +96,7 @@ export default function LogDrive() {
         ...fields,
         startLocation: prefill?.startLocation ?? null,
         endLocation: prefill?.endLocation ?? null,
+        route: prefill?.route ?? null,
       });
       navigate(`/dashboard/${studentId}`, { state: { celebrate: randomEncouragement() }, replace: true });
     }
@@ -108,6 +110,13 @@ export default function LogDrive() {
   return (
     <div className="page">
       <h2 style={{ fontSize: 20, marginBottom: 6 }}>{isEditing ? 'Edit drive' : 'Log a drive'}</h2>
+
+      {existingLog?.startLocation && existingLog?.endLocation && (
+        <div style={{ marginBottom: 20 }}>
+          <DriveMap start={existingLog.startLocation} end={existingLog.endLocation} route={existingLog.route} />
+        </div>
+      )}
+
       <form onSubmit={handleSave}>
         <div className="field">
           <label>Date</label>
