@@ -9,16 +9,16 @@ export default function DriveTimer() {
   const [elapsed, setElapsed] = useState(0);
   const [miles, setMiles] = useState(0);
   const interval = useRef(null);
-  const milesRef = useRef(0);
+  const trackingRef = useRef({ miles: 0, start: null, end: null });
   const stopTracking = useRef(null);
 
   useEffect(() => {
     interval.current = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
     }, 1000);
-    stopTracking.current = startMileageTracking((total) => {
-      milesRef.current = total;
-      setMiles(total);
+    stopTracking.current = startMileageTracking((update) => {
+      trackingRef.current = update;
+      setMiles(update.miles);
     });
     return () => {
       clearInterval(interval.current);
@@ -34,12 +34,15 @@ export default function DriveTimer() {
     clearInterval(interval.current);
     stopTracking.current?.();
     const endTime = new Date();
+    const { miles: trackedMiles, start, end } = trackingRef.current;
     navigate(`/log-drive/${studentId}`, {
       state: {
         prefill: {
           startTime: startTime.toISOString(),
           endTime: endTime.toISOString(),
-          distanceMiles: milesRef.current > 0 ? Number(milesRef.current.toFixed(1)) : null,
+          distanceMiles: trackedMiles > 0 ? Number(trackedMiles.toFixed(1)) : null,
+          startLocation: start,
+          endLocation: end,
         },
       },
       replace: true,

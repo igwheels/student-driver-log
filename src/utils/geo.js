@@ -62,15 +62,25 @@ export function requestLocationPermission() {
 }
 
 /**
- * Tracks cumulative miles traveled via navigator.geolocation.watchPosition.
- * Returns a stop() function; onUpdate(totalMiles) fires as new fixes arrive.
+ * Tracks cumulative miles traveled and the first/last known position via
+ * navigator.geolocation.watchPosition. Returns a stop() function;
+ * onUpdate({ miles, start, end }) fires as new fixes arrive, where start
+ * and end are { lat, lng } once at least one good fix has come in.
  */
 export function startMileageTracking(onUpdate) {
   if (!navigator.geolocation) return () => {};
 
   let totalMiles = 0;
   let lastFix = null;
+  let startFix = null;
   let watchId = null;
+
+  const report = () =>
+    onUpdate({
+      miles: totalMiles,
+      start: startFix ? { lat: startFix.latitude, lng: startFix.longitude } : null,
+      end: lastFix ? { lat: lastFix.latitude, lng: lastFix.longitude } : null,
+    });
 
   watchId = navigator.geolocation.watchPosition(
     (position) => {
@@ -82,10 +92,12 @@ export function startMileageTracking(onUpdate) {
         const delta = haversineMiles(lastFix.latitude, lastFix.longitude, latitude, longitude);
         if (delta <= MAX_JUMP_MILES) {
           totalMiles += delta;
-          onUpdate(totalMiles);
         }
+      } else {
+        startFix = { latitude, longitude };
       }
       lastFix = { latitude, longitude };
+      report();
     },
     () => {},
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
