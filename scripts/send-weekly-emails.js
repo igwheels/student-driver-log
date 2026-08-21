@@ -5,7 +5,11 @@
  * Sent to everyone with access to the student's dashboard: the student
  * themselves (student.email, if set), the owner (ownerEmail), and anyone
  * the student has been shared with (sharedWithEmails) — see shareStudent
- * in src/context/AppContext.jsx.
+ * in src/context/AppContext.jsx. A recipient who has opted out (via the
+ * unsubscribe link in the email, or the checkbox on their Account page —
+ * see src/pages/Unsubscribe.jsx and src/pages/Account.jsx) is skipped;
+ * opt-out status lives in emailPreferences/{email} and defaults to
+ * subscribed when no document exists.
  *
  * Requires:
  *   - Firestore mirroring the app's students + logs
@@ -13,18 +17,22 @@
  *
  * Firestore structure expected:
  *   users/{uid}/students/{studentId}         -> { firstName, lastName, email, state,
- *                                                 ownerEmail, sharedWithEmails }
- *   users/{uid}/students/{studentId}/logs/*  -> { durationMinutes, timeOfDay }
+ *                                                 ownerEmail, sharedWithEmails,
+ *                                                 lastProgressEmailAt }
+ *   users/{uid}/students/{studentId}/logs/*  -> { startTime, durationMinutes, timeOfDay,
+ *                                                 type, distanceMiles, startLocation,
+ *                                                 endLocation, route }
+ *   emailPreferences/{email}                 -> { weeklyEmailOptOut }
  */
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
 import { STATE_REQUIREMENTS } from '../src/data/stateRequirements.js';
+import { renderRouteMapPng, renderGaugePng } from './lib/staticImages.js';
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 initializeApp({ credential: cert(serviceAccount) });
 
-// Create Gmail transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -33,62 +41,178 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const APP_URL = process.env.APP_URL || 'https://igwheels.github.io/student-driver-log/';
+const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+
 const fmt = (mins) => `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;
+const fmtDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const DRIVE_TYPE_LABELS = { local: 'Local', rural: 'Rural', highway: 'Highway' };
+
+function unsubscribeUrl(email) {
+  const base = APP_URL.endsWith('/') ? APP_URL : `${APP_URL}/`;
+  return `${base}#/unsubscribe?email=${encodeURIComponent(email)}`;
+}
+
+async function isOptedOut(db, cache, email) {
+  if (cache.has(email)) return cache.get(email);
+  const snap = await db.collection('emailPreferences').doc(email).get();
+  const optedOut = snap.exists && snap.data().weeklyEmailOptOut === true;
+  cache.set(email, optedOut);
+  return optedOut;
+}
 
 async function main() {
   const db = getFirestore();
   const students = await db.collectionGroup('students').get();
+  const optOutCache = new Map();
 
   const sends = [];
   for (const doc of students.docs) {
     const student = doc.data();
 
-    const recipients = new Set();
+    const allRecipients = new Set();
     for (const email of [student.email, student.ownerEmail, ...(student.sharedWithEmails ?? [])]) {
-      if (email) recipients.add(email.trim().toLowerCase());
+      if (email) allRecipients.add(email.trim().toLowerCase());
     }
-    if (recipients.size === 0) continue;
+    if (allRecipients.size === 0) continue;
+
+    const recipients = [];
+    for (const email of allRecipients) {
+      if (!(await isOptedOut(db, optOutCache, email))) recipients.push(email);
+    }
 
     const logsSnap = await doc.ref.collection('logs').get();
+    const allLogs = logsSnap.docs.map((l) => l.data());
+
     let total = 0;
     let night = 0;
-    logsSnap.forEach((l) => {
-      const d = l.data();
+    allLogs.forEach((d) => {
       total += d.durationMinutes ?? 0;
       if (d.timeOfDay === 'night') night += d.durationMinutes ?? 0;
     });
 
-    const req = STATE_REQUIREMENTS[student.state] ?? { totalHours: 0, nightHours: 0 };
-    const pct = req.totalHours > 0 ? Math.min(100, Math.round((total / (req.totalHours * 60)) * 100)) : null;
+    const since = student.lastProgressEmailAt
+      ? new Date(student.lastProgressEmailAt)
+      : new Date(Date.now() - DEFAULT_LOOKBACK_MS);
+    const recentLogs = allLogs
+      .filter((d) => d.startTime && new Date(d.startTime) > since)
+      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+    const req = STATE_REQUIREMENTS[student.state] ?? { totalHours: 0, nightHours: 0, name: student.state };
+    const totalGoalMinutes = req.totalHours * 60;
+    const nightGoalMinutes = req.nightHours * 60;
+    const pct = req.totalHours > 0 ? Math.min(100, Math.round((total / totalGoalMinutes) * 100)) : null;
     const progressLine =
       pct != null
         ? `${student.firstName} is ${pct}% of the way to the ${req.totalHours}-hour goal.` +
           (req.nightHours > 0 ? ` Night driving: ${fmt(night)} of ${req.nightHours}h.` : '')
         : `${req.name ?? 'Your state'} has no minimum hour requirement — every hour logged is above and beyond!`;
 
+    if (recipients.length === 0) {
+      // Everyone with access has opted out — still advance the "since last
+      // email" window below, but skip the (costly) image rendering and send.
+      await doc.ref.update({ lastProgressEmailAt: new Date().toISOString() });
+      continue;
+    }
+
+    // Pre-render the images shared by every recipient of this student's email
+    // once, rather than per recipient.
+    const totalGaugePng = await renderGaugePng({
+      label: 'Total hours',
+      value: total,
+      goal: totalGoalMinutes || 1,
+      color: '#2F6FDE',
+    });
+    const nightGaugePng =
+      req.nightHours > 0
+        ? await renderGaugePng({ label: 'Night hours', value: night, goal: nightGoalMinutes, color: '#6C5CE7' })
+        : null;
+
+    const driveMapPngs = await Promise.all(
+      recentLogs.map((d) =>
+        d.startLocation && d.endLocation
+          ? renderRouteMapPng({ start: d.startLocation, end: d.endLocation, route: d.route }, { width: 500, height: 220 })
+          : null
+      )
+    );
+
+    const driveRows = recentLogs
+      .map((d, i) => {
+        const meta = `${DRIVE_TYPE_LABELS[d.type] ?? d.type} · ${d.timeOfDay === 'night' ? 'Night' : 'Day'}${
+          d.distanceMiles != null ? ` · ${d.distanceMiles} mi` : ''
+        }`;
+        return { date: fmtDate(d.startTime), meta, duration: fmt(d.durationMinutes), mapCid: driveMapPngs[i] ? `drivemap${i}` : null };
+      });
+
+    const driveTextBlock = driveRows.length
+      ? driveRows.map((r) => `- ${r.date}: ${r.meta}, ${r.duration}`).join('\n')
+      : 'No new drives logged this week.';
+
+    const driveHtmlBlock = driveRows.length
+      ? driveRows
+          .map(
+            (r) => `
+            <div style="border:1px solid #DBE0EA;border-radius:10px;padding:14px;margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:14px;">
+                <div><strong>${r.date}</strong><div style="color:#7C86A0;font-size:12px;text-transform:capitalize;">${r.meta}</div></div>
+                <div style="font-weight:700;color:#2F6FDE;">${r.duration}</div>
+              </div>
+              ${r.mapCid ? `<img src="cid:${r.mapCid}" width="500" style="width:100%;max-width:500px;border-radius:8px;margin-top:10px;display:block;" alt="Drive route map" />` : ''}
+            </div>`
+          )
+          .join('')
+      : '<p style="color:#7C86A0;">No new drives logged this week.</p>';
+
+    const gaugesHtmlBlock = `
+      <div style="text-align:center;margin:20px 0;">
+        <img src="cid:gaugetotal" width="180" style="display:inline-block;margin:0 10px;" alt="Total hours gauge" />
+        ${nightGaugePng ? '<img src="cid:gaugenight" width="180" style="display:inline-block;margin:0 10px;" alt="Night hours gauge" />' : ''}
+      </div>`;
+
+    const attachments = [{ filename: 'gauge-total.png', content: totalGaugePng, cid: 'gaugetotal' }];
+    if (nightGaugePng) attachments.push({ filename: 'gauge-night.png', content: nightGaugePng, cid: 'gaugenight' });
+    driveMapPngs.forEach((png, i) => {
+      if (png) attachments.push({ filename: `drive-map-${i}.png`, content: png, cid: `drivemap${i}` });
+    });
+
     for (const to of recipients) {
+      const unsubUrl = unsubscribeUrl(to);
       sends.push(
         transporter.sendMail({
           to,
           from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
           replyTo: process.env.GMAIL_EMAIL,
-          subject: `🚗 Weekly driving progress for ${student.firstName}`,
-          text: `Weekly driving progress for ${student.firstName}
+          subject: `🚗 ${student.firstName}'s Weekly Driving Progress`,
+          text: `${student.firstName}'s Weekly Driving Progress
 
 Total supervised hours: ${fmt(total)}
 Night hours: ${fmt(night)}
 ${progressLine}
 
-Keep up the great work!`,
+Drives since your last update:
+${driveTextBlock}
+
+Keep up the great work!
+
+---
+Unsubscribe from weekly progress emails: ${unsubUrl}`,
           html: `
-            <h2>Weekly driving progress for ${student.firstName}</h2>
-            <p><strong>Total supervised hours:</strong> ${fmt(total)}</p>
-            <p><strong>Night hours:</strong> ${fmt(night)}</p>
+            <h2>${student.firstName}'s Weekly Driving Progress</h2>
+            ${gaugesHtmlBlock}
             <p>${progressLine}</p>
-            <p>Keep up the great work! 🏁</p>`,
+            <h3 style="margin-top:24px;">Drives since your last update</h3>
+            ${driveHtmlBlock}
+            <p>Keep up the great work! 🏁</p>
+            <hr style="border:none;border-top:1px solid #DBE0EA;margin:24px 0 12px;" />
+            <p style="color:#7C86A0;font-size:12px;">
+              <a href="${unsubUrl}" style="color:#7C86A0;">Unsubscribe from weekly progress emails</a>
+            </p>`,
+          attachments,
         })
       );
     }
+
+    await doc.ref.update({ lastProgressEmailAt: new Date().toISOString() });
   }
 
   const results = await Promise.allSettled(sends);
