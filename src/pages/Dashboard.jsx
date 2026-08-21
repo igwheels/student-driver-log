@@ -11,12 +11,14 @@ export default function Dashboard() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { students, getLogs, getTotals, user, isOwner, unshareStudent } = useApp();
+  const { students, getLogs, getTotals, user, isOwner, unshareStudent, getPendingRequests, approveRequest, denyRequest } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [celebration, setCelebration] = useState(location.state?.celebrate ?? null);
   const [showAllDrives, setShowAllDrives] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharedUsers, setSharedUsers] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [pendingActionId, setPendingActionId] = useState(null);
 
   // Update shared users when student changes
   useEffect(() => {
@@ -25,12 +27,49 @@ export default function Dashboard() {
     }
   }, [student?.id]);
 
+  const refreshPendingRequests = () => {
+    if (!isOwner(studentId)) return;
+    getPendingRequests(studentId)
+      .then(setPendingRequests)
+      .catch((e) => console.error('Failed to load pending access requests:', e));
+  };
+
+  useEffect(() => {
+    refreshPendingRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId, student?.ownerId]);
+
   const handleUnshare = async (email) => {
     try {
       await unshareStudent(studentId, email);
       setSharedUsers((prev) => prev.filter((u) => u.email !== email));
     } catch (e) {
       console.error('Failed to unshare:', e);
+    }
+  };
+
+  const handleApproveRequest = async (request) => {
+    setPendingActionId(request.id);
+    try {
+      await approveRequest(request);
+      setPendingRequests((prev) => prev.filter((r) => r.id !== request.id));
+      setSharedUsers((prev) => [...prev, { email: request.requesterEmail, addedAt: new Date().toISOString() }]);
+    } catch (e) {
+      console.error('Failed to approve request:', e);
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const handleDenyRequest = async (request) => {
+    setPendingActionId(request.id);
+    try {
+      await denyRequest(request.id);
+      setPendingRequests((prev) => prev.filter((r) => r.id !== request.id));
+    } catch (e) {
+      console.error('Failed to deny request:', e);
+    } finally {
+      setPendingActionId(null);
     }
   };
 
@@ -98,6 +137,69 @@ export default function Dashboard() {
           </button>
         )}
       </div>
+
+      {isOwner(studentId) && pendingRequests.length > 0 && (
+        <div style={{ marginTop: 24, padding: 16, backgroundColor: 'var(--white)', border: '1px solid var(--line)', borderRadius: 8 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 600, marginTop: 0, marginBottom: 12 }}>Pending access requests</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pendingRequests.map((request) => (
+              <div
+                key={request.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#FFF7E6',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div>{request.requesterName || request.requesterEmail}</div>
+                  {request.requesterName && (
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{request.requesterEmail}</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    onClick={() => handleDenyRequest(request)}
+                    disabled={pendingActionId === request.id}
+                    style={{
+                      background: 'none',
+                      border: '1px solid var(--line)',
+                      borderRadius: 6,
+                      padding: '6px 10px',
+                      color: 'var(--muted)',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                    }}
+                  >
+                    Deny
+                  </button>
+                  <button
+                    onClick={() => handleApproveRequest(request)}
+                    disabled={pendingActionId === request.id}
+                    style={{
+                      background: 'var(--success)',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '6px 10px',
+                      color: 'var(--white)',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Approve
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isOwner(studentId) && sharedUsers.length > 0 && (
         <div style={{ marginTop: 24, padding: 16, backgroundColor: 'var(--white)', border: '1px solid var(--line)', borderRadius: 8 }}>

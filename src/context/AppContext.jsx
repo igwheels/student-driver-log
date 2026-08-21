@@ -166,11 +166,73 @@ export function AppProvider({ children }) {
     if (user?.id) {
       try {
         await setDoc(doc(db, 'users', user.id, 'students', id), newStudent);
+        // A small, separate directory entry (not the full student record) so
+        // addStudent() can check whether a dashboard for this student's email
+        // already exists elsewhere, without exposing every owner's full
+        // student/logs data to a cross-account lookup.
+        await setDoc(doc(db, 'studentDirectory', id), {
+          studentId: id,
+          ownerId: user.id,
+          ownerName: user.name ?? '',
+          firstName: newStudent.firstName,
+          lastName: newStudent.lastName,
+          email: normalizeEmail(newStudent.email || ''),
+        });
       } catch (e) {
         console.error('Failed to save student to Firestore:', e);
       }
     }
     return id;
+  };
+
+  // Looks up whether a dashboard already exists for this student's email,
+  // via the studentDirectory collection (see addStudent above) — used by
+  // AddStudent.jsx before creating a new, possibly-duplicate dashboard.
+  const findExistingStudentByEmail = async (email) => {
+    const normalized = normalizeEmail(email);
+    if (!normalized) return null;
+    const snap = await getDocs(query(collection(db, 'studentDirectory'), where('email', '==', normalized)));
+    if (snap.empty) return null;
+    // Prefer an entry that isn't already the current user's own, if there's a choice.
+    const match = snap.docs.find((d) => d.data().ownerId !== user?.id) ?? snap.docs[0];
+    return { id: match.id, ...match.data() };
+  };
+
+  // Files a request to be added as a shared viewer on someone else's
+  // existing student dashboard. The owner sees it as a pending entry on
+  // their dashboard (see getPendingRequests/approveRequest/denyRequest)
+  // and can approve or deny it.
+  const requestStudentAccess = async (directoryEntry) => {
+    await addDoc(collection(db, 'accessRequests'), {
+      studentId: directoryEntry.studentId,
+      ownerId: directoryEntry.ownerId,
+      ownerName: directoryEntry.ownerName,
+      studentFirstName: directoryEntry.firstName,
+      requesterId: user.id,
+      requesterName: user.name,
+      requesterEmail: normalizeEmail(user.email || ''),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+  };
+
+  const getPendingRequests = async (studentId) => {
+    if (!user?.id) return [];
+    const snap = await getDocs(
+      query(collection(db, 'accessRequests'), where('ownerId', '==', user.id), where('studentId', '==', studentId))
+    );
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((r) => r.status === 'pending');
+  };
+
+  const approveRequest = async (request) => {
+    await shareStudent(request.studentId, request.requesterEmail);
+    await deleteDoc(doc(db, 'accessRequests', request.id));
+  };
+
+  const denyRequest = async (requestId) => {
+    await deleteDoc(doc(db, 'accessRequests', requestId));
   };
 
   const addLog = async (studentId, log) => {
@@ -234,6 +296,9 @@ export function AppProvider({ children }) {
     setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, email } : s)));
 
     await updateDoc(doc(db, 'users', user.id, 'students', studentId), { email });
+    await setDoc(doc(db, 'studentDirectory', studentId), { email: normalizeEmail(email) }, { merge: true }).catch(
+      (e) => console.warn('Failed to sync studentDirectory email:', e)
+    );
   };
 
   const deleteStudent = async (studentId) => {
@@ -360,6 +425,11 @@ export function AppProvider({ children }) {
         setUser,
         students,
         addStudent,
+        findExistingStudentByEmail,
+        requestStudentAccess,
+        getPendingRequests,
+        approveRequest,
+        denyRequest,
         addLog,
         updateLog,
         getLogs,
