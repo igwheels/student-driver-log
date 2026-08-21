@@ -4,26 +4,83 @@ import { useApp } from '../context/AppContext';
 import { STATE_LIST, STATE_REQUIREMENTS } from '../data/stateRequirements';
 
 export default function AddStudent() {
-  const { addStudent } = useApp();
+  const { addStudent, students, findExistingStudentByEmail, requestStudentAccess } = useApp();
   const navigate = useNavigate();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [state, setState] = useState('');
   const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [duplicate, setDuplicate] = useState(null); // { entry, alreadyMine } | null
+  const [requesting, setRequesting] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
 
   const req = state ? STATE_REQUIREMENTS[state] : null;
 
-  const handleSave = (e) => {
+  const createStudent = async () => {
+    const id = await addStudent({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), state });
+    navigate(`/dashboard/${id}`);
+  };
+
+  const handleSave = async (e) => {
     e.preventDefault();
     setError('');
     if (!firstName.trim() || !lastName.trim()) return setError("Please enter the student's first and last name.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError('Please enter a valid email address.');
     if (!state) return setError("Please select the student's state of residence.");
 
-    const id = addStudent({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), state });
-    navigate(`/dashboard/${id}`);
+    setChecking(true);
+    try {
+      const entry = await findExistingStudentByEmail(email.trim());
+      if (entry) {
+        const alreadyMine = students.some((s) => s.id === entry.studentId);
+        setDuplicate({ entry, alreadyMine });
+        return;
+      }
+    } catch (err) {
+      console.error('Duplicate student check failed:', err);
+      // Don't block adding a student just because the lookup failed.
+    } finally {
+      setChecking(false);
+    }
+
+    await createStudent();
   };
+
+  const handleRequestAccess = async () => {
+    setRequesting(true);
+    try {
+      await requestStudentAccess(duplicate.entry);
+      setDuplicate(null);
+      setRequestSent(true);
+    } catch (err) {
+      setError(err.message || 'Could not send the request.');
+      setDuplicate(null);
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const handleCreateAnyway = async () => {
+    setDuplicate(null);
+    await createStudent();
+  };
+
+  if (requestSent) {
+    return (
+      <div className="page">
+        <h2 style={{ fontSize: 20, marginBottom: 6 }}>Request sent</h2>
+        <p style={{ color: 'var(--muted)' }}>
+          {duplicate?.entry?.ownerName || "The dashboard's owner"} will see your request and can approve it from{' '}
+          {firstName || "the student's"} dashboard. You'll get access as soon as they do.
+        </p>
+        <button className="btn btn-primary" style={{ marginTop: 24 }} onClick={() => navigate('/students')}>
+          Back to students
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -69,7 +126,9 @@ export default function AddStudent() {
 
         {error && <p style={{ color: '#D8503F', fontSize: 13, marginTop: 14 }}>{error}</p>}
 
-        <button type="submit" className="btn btn-primary" style={{ marginTop: 24 }}>Add student</button>
+        <button type="submit" className="btn btn-primary" style={{ marginTop: 24 }} disabled={checking}>
+          {checking ? 'Checking…' : 'Add student'}
+        </button>
       </form>
 
       {req && (
@@ -84,6 +143,40 @@ export default function AddStudent() {
           </a>
           . Laws change — verify with your state DMV.
         </p>
+      )}
+
+      {duplicate && (
+        <div className="modal-backdrop" onClick={() => !requesting && setDuplicate(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            {duplicate.alreadyMine ? (
+              <>
+                <div className="modal-text">You already have access to {duplicate.entry.firstName}'s dashboard.</div>
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: 20 }}
+                  onClick={() => navigate(`/dashboard/${duplicate.entry.studentId}`)}
+                >
+                  Go to dashboard
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="modal-text">
+                  A dashboard for {duplicate.entry.firstName} already exists, owned by {duplicate.entry.ownerName || 'another parent'}.
+                  Would you like to request access instead of creating a new one?
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+                  <button className="btn btn-outline" style={{ flex: 1 }} onClick={handleCreateAnyway} disabled={requesting}>
+                    Create new
+                  </button>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleRequestAccess} disabled={requesting}>
+                    {requesting ? 'Sending…' : 'Request access'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

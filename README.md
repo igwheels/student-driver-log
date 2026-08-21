@@ -77,6 +77,39 @@ A GitHub Actions workflow (`send-invitations.yml`, same Gmail setup as the weekl
    node scripts/migrate-add-sharing-fields.js
    ```
 
+## Requesting access to an existing student
+
+When someone tries to add a student whose email already has a dashboard (owned by someone else), `AddStudent.jsx` offers to send an access request instead of creating a duplicate. The owner sees it as a **pending** entry next to "Shared with" on that student's dashboard, with **Approve**/**Deny** buttons — approving is the same as using the Share button (`shareStudent()`), just triggered from the other side.
+
+This relies on two collections that aren't covered by the existing rules:
+
+- `studentDirectory/{studentId}` — a small, separate record (just `studentId`, `ownerId`, `ownerName`, `firstName`, `lastName`, `email`) kept in sync with each student, so the "does this email already have a dashboard?" check doesn't require opening up read access to the full `students` collection (which also holds `sharedWithEmails`, log summaries via subcollections, etc.) to every signed-in user.
+- `accessRequests/{requestId}` — one doc per pending request, holding both the owner's and requester's ids/emails so each side can be scoped independently.
+
+**One-time setup after adding this feature to an existing deployment:**
+
+1. Add these rules:
+   ```
+   match /studentDirectory/{studentId} {
+     allow read: if signedIn();
+     allow write: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+   }
+
+   match /accessRequests/{requestId} {
+     allow create: if signedIn() &&
+       request.resource.data.requesterId == request.auth.uid &&
+       request.resource.data.requesterEmail == myEmail();
+     allow read, delete: if signedIn() &&
+       (request.auth.uid == resource.data.ownerId || request.auth.uid == resource.data.requesterId);
+     allow update: if false;
+   }
+   ```
+2. Backfill directory entries for students created before this feature existed:
+   ```bash
+   export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
+   node scripts/migrate-add-student-directory.js
+   ```
+
 ## Project structure
 
 ```
