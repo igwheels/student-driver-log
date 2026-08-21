@@ -1,0 +1,24 @@
+name: Backfill student directory (one-off)
+
+# Manual-only: run scripts/migrate-add-student-directory.js, which backfills
+# the studentDirectory collection used by the "request access to an existing
+# student" feature (see README.md). Only reads students (collectionGroup
+# query) and writes to the new studentDirectory collection — it never
+# touches existing student docs or their logs subcollections. Safe to
+# re-run. Delete this workflow once you've run it, or leave it — running it
+# again just re-writes the same directory entries.
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: node scripts/migrate-add-student-directory.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
