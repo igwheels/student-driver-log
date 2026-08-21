@@ -7,6 +7,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  sendPasswordResetEmail,
   GoogleAuthProvider,
 } from 'firebase/auth';
 
@@ -31,6 +32,7 @@ export default function Login() {
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [resetStatus, setResetStatus] = useState('');
 
   const completeLogin = (profile) => {
     setUser(profile);
@@ -65,6 +67,22 @@ export default function Login() {
       } else {
         setError(err.message || 'Sign-in failed. Check your email and password.');
       }
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setResetStatus('');
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Enter your email above first, then tap "Forgot your password?".');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, trimmedEmail);
+      setResetStatus(`Password reset email sent to ${trimmedEmail}.`);
+    } catch (err) {
+      setError(err.message || 'Could not send reset email.');
     }
   };
 
@@ -106,7 +124,11 @@ export default function Login() {
           value={password} onChange={(e) => setPassword(e.target.value)}
         />
         {error && <p style={{ color: '#F2A63C', fontSize: 13, marginBottom: 12 }}>{error}</p>}
+        {resetStatus && <p style={{ color: '#7FA8F0', fontSize: 13, marginBottom: 12 }}>{resetStatus}</p>}
         <button type="submit" className="btn btn-primary">Sign in</button>
+        <button type="button" className="bio-link" onClick={handleForgotPassword}>
+          Forgot your password?
+        </button>
       </form>
 
       <div className="divider" style={{ width: '100%', maxWidth: 340 }}>or</div>
