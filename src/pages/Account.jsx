@@ -11,6 +11,7 @@ import {
   GoogleAuthProvider,
 } from 'firebase/auth';
 import { watchLocationPermissionStatus, requestLocationPermission } from '../utils/geo';
+import { getWeeklyEmailOptOut, setWeeklyEmailOptOut } from '../utils/emailPreferences';
 
 const DELETE_PHRASE = 'Delete this account and all its dashboards forever.';
 
@@ -33,6 +34,25 @@ export default function Account() {
 
   const [locationStatus, setLocationStatus] = useState(null);
   useEffect(() => watchLocationPermissionStatus(setLocationStatus), []);
+
+  // No document for this email means subscribed by default — matches the
+  // weekly-email sender's own default, so a brand-new account starts opted in.
+  const [weeklyEmailOptIn, setWeeklyEmailOptIn] = useState(true);
+  useEffect(() => {
+    if (!user?.email) return;
+    getWeeklyEmailOptOut(user.email).then((optedOut) => setWeeklyEmailOptIn(!optedOut));
+  }, [user?.email]);
+
+  const handleWeeklyEmailToggle = async (e) => {
+    const checked = e.target.checked;
+    setWeeklyEmailOptIn(checked);
+    try {
+      await setWeeklyEmailOptOut(user.email, !checked);
+    } catch (err) {
+      console.error('Failed to update email preference:', err);
+      setWeeklyEmailOptIn(!checked);
+    }
+  };
 
   const [deleteInput, setDeleteInput] = useState('');
   const [deleteError, setDeleteError] = useState('');
@@ -139,6 +159,14 @@ export default function Account() {
             )}
           </>
         )}
+      </section>
+
+      <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
+        <h3 style={{ fontSize: 16, marginBottom: 10 }}>Email preferences</h3>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+          <input type="checkbox" checked={weeklyEmailOptIn} onChange={handleWeeklyEmailToggle} />
+          Send me weekly progress emails
+        </label>
       </section>
 
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
