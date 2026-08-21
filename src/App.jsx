@@ -10,6 +10,7 @@ import LogDrive from './pages/LogDrive';
 import Account from './pages/Account';
 import ManageStudents from './pages/ManageStudents';
 import Snapshot from './pages/Snapshot';
+import Unsubscribe from './pages/Unsubscribe';
 import ShareButton from './components/ShareButton';
 import { STATE_REQUIREMENTS } from './data/stateRequirements';
 import { buildDashboardSnapshotUrl } from './utils/snapshot';
@@ -36,7 +37,8 @@ export default function App() {
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
   const isSnapshot = location.pathname.startsWith('/snapshot');
-  const showTopbar = !isLogin && !isTimer && !isSnapshot;
+  const isUnsubscribe = location.pathname.startsWith('/unsubscribe');
+  const showTopbar = !isLogin && !isTimer && !isSnapshot && !isUnsubscribe;
   const isDashboard = location.pathname.startsWith('/dashboard');
   const title = TITLES[location.pathname] ||
     (isDashboard ? 'Dashboard'
@@ -122,6 +124,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/snapshot" element={<Snapshot />} />
+        <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/students" element={<RequireAuth><Students /></RequireAuth>} />
         <Route path="/add-student" element={<RequireAuth><AddStudent /></RequireAuth>} />
         <Route path="/dashboard/:studentId" element={<RequireAuth><Dashboard /></RequireAuth>} />
