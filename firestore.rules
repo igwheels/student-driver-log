@@ -1,0 +1,178 @@
+// Firestore security rules for Student Driver Log.
+//
+// These are published manually through the Firebase console (Firestore →
+// Rules); this file is the version-controlled source of truth for what
+// should be there. Keep the two in sync — edit here, then paste.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isSharedWithMe(studentData) {
+      return studentData.sharedWithEmails is list && myEmail() in studentData.sharedWithEmails;
+    }
+
+    // ---------------------------------------------------------------------
+    // emailPreferences/{email} -> { weeklyEmailOptOut, updatedAt }
+    //
+    // Reachable without a signed-in session on purpose: the unsubscribe link
+    // in a progress email has to work for whoever received it, and the
+    // recipient may not have an account at all.
+    //
+    // get() stays open for that. list() does NOT — the document IDs here are
+    // email addresses, so an open list let anyone dump every address that has
+    // ever set a preference. Nothing in the app lists this collection; both
+    // callers read a single known doc (src/utils/emailPreferences.js).
+    //
+    // Writes are pinned to exactly the two fields the app writes, with the
+    // right types, so this can't be used as free unauthenticated storage.
+    //
+    // Residual, accepted for now: anyone who knows an address can still
+    // toggle that address's preference. Closing that needs a signed token in
+    // the unsubscribe URL, which is a code change, not a rules change.
+    // ---------------------------------------------------------------------
+    match /emailPreferences/{email} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if
+        request.resource.data.keys().hasOnly(['weeklyEmailOptOut', 'updatedAt']) &&
+        request.resource.data.weeklyEmailOptOut is bool;
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // studentDirectory/{studentId}
+    //   -> { studentId, ownerId, ownerName, firstName, lastName, email }
+    //
+    // Minimal cross-account record backing the "does a dashboard for this
+    // email already exist?" check, so that lookup doesn't need read access to
+    // the full student documents.
+    //
+    // create/update/delete are split apart deliberately. The previous single
+    // `allow write: if signedIn() && request.resource.data.ownerId == request.auth.uid`
+    // only inspected the INCOMING data, never the existing document — so any
+    // signed-in user could overwrite anyone's directory entry by setting
+    // ownerId to themselves, taking over the entry and redirecting future
+    // access requests for that student to themselves. Update and delete now
+    // check the stored owner as well.
+    //
+    // STILL OPEN: `list` remains allowed because findExistingStudentByEmail()
+    // finds entries with a where('email','==') query, and Firestore rules
+    // cannot inspect a query's filters — there is no way to require that
+    // filter, so a signed-in user can still read the whole collection and
+    // enumerate every student's name and email. Fixing that means keying
+    // documents by a hash of the email and reading one doc directly, then
+    // replacing the read rules with:
+    //
+    //     allow get: if signedIn();
+    //     allow list: if false;
+    //
+    // Publish that only together with the code change, or Add Student breaks.
+    // ---------------------------------------------------------------------
+    match /studentDirectory/{studentId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn() &&
+        resource.data.ownerId == request.auth.uid &&
+        request.resource.data.ownerId == request.auth.uid;
+      allow delete: if signedIn() &&
+        resource.data.ownerId == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------------
+    // accessRequests/{requestId}
+    //
+    // One pending request per "let me see this student's dashboard" ask.
+    // ownerId is now verified against the student's real owner in
+    // studentDirectory rather than trusted from the client, so a request
+    // can't be aimed at an account that doesn't actually own the student.
+    // The requester's identity was already pinned to their own uid/email,
+    // which is what makes it safe for approveRequest() to grant access to
+    // the address stored here; update stays closed so it can't be swapped
+    // after the owner sees it.
+    // ---------------------------------------------------------------------
+    match /accessRequests/{requestId} {
+      allow create: if signedIn() &&
+        request.resource.data.requesterId == request.auth.uid &&
+        request.resource.data.requesterEmail == myEmail() &&
+        request.resource.data.status == 'pending' &&
+        exists(/databases/$(database)/documents/studentDirectory/$(request.resource.data.studentId)) &&
+        request.resource.data.ownerId ==
+          get(/databases/$(database)/documents/studentDirectory/$(request.resource.data.studentId)).data.ownerId;
+      allow read, delete: if signedIn() &&
+        (request.auth.uid == resource.data.ownerId || request.auth.uid == resource.data.requesterId);
+      allow update: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // users/{ownerId}/students/{studentId} and their logs
+    //
+    // Owner has full control; anyone the student is shared with can read the
+    // student and read/write its drive logs, but can't edit or delete the
+    // student itself. The added ownerId check on writes keeps a student
+    // document from claiming an owner other than the account it lives under —
+    // the client reads that field to build log paths.
+    // ---------------------------------------------------------------------
+    match /users/{ownerId}/students/{studentId} {
+      allow read: if signedIn() &&
+        (request.auth.uid == ownerId || isSharedWithMe(resource.data));
+      allow create, update: if signedIn() &&
+        request.auth.uid == ownerId &&
+        request.resource.data.ownerId == ownerId;
+      allow delete: if signedIn() && request.auth.uid == ownerId;
+
+      match /logs/{logId} {
+        allow read, write: if signedIn() &&
+          (request.auth.uid == ownerId ||
+           isSharedWithMe(get(/databases/$(database)/documents/users/$(ownerId)/students/$(studentId)).data));
+      }
+    }
+
+    // Inlined (not routed through isSharedWithMe()) because Firestore's
+    // list/collection-group query validator can't statically prove a rule
+    // matches the query's array-contains filter when the check is hidden
+    // inside a function call — it denies the whole query rather than risk
+    // it. The direct path-specific rule above doesn't have this constraint
+    // (get() requests evaluate fully dynamically), so it can keep using
+    // the helper.
+    match /{path=**}/students/{studentId} {
+      allow read: if signedIn() && myEmail() in resource.data.sharedWithEmails;
+    }
+
+    // ---------------------------------------------------------------------
+    // invitations/{invitationId}
+    //
+    // Write-only queue drained by scripts/send-invitation-emails.js with the
+    // admin SDK, which bypasses these rules. Fields are pinned so a client
+    // can't pre-set emailSent or attach extra payload to a queued email.
+    // The content of that email is user-controlled by design (owner and
+    // student names); it is escaped at render time in
+    // src/utils/invitations.js, which is what keeps it from carrying markup.
+    // ---------------------------------------------------------------------
+    match /invitations/{invitationId} {
+      allow create: if signedIn() &&
+        request.resource.data.ownerId == request.auth.uid &&
+        request.resource.data.ownerEmail == request.auth.token.email &&
+        request.resource.data.email is string &&
+        request.resource.data.emailSent == false &&
+        request.resource.data.keys().hasOnly([
+          'email', 'studentId', 'studentName', 'ownerId', 'ownerName',
+          'ownerEmail', 'createdAt', 'emailSent'
+        ]);
+      allow read, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

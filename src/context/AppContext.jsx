@@ -41,6 +41,18 @@ export function AppProvider({ children }) {
         );
       } else {
         setUser(null);
+        // Don't leave a signed-out device holding a student's drive history —
+        // the cache below includes every logged drive and its GPS route, and
+        // these are minors. Without this, signing out cleared the session but
+        // left all of it readable in localStorage for whoever used the browser
+        // next. Clearing state too keeps the save effect from rewriting it.
+        setStudents([]);
+        setLogs({});
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {
+          console.warn('Failed to clear cached data on sign-out', e);
+        }
       }
       setAuthChecked(true);
     });
@@ -63,15 +75,17 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // Save to localStorage when data changes (offline fallback / cache)
+  // Save to localStorage when data changes (offline fallback / cache).
+  // Only while someone is actually signed in — otherwise this would just
+  // recreate the cache that the sign-out branch above deliberately cleared.
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !user) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ students, logs }));
     } catch (e) {
       console.warn('Failed to save to localStorage', e);
     }
-  }, [students, logs, hydrated]);
+  }, [students, logs, hydrated, user]);
 
   // Load owned + shared students (and their logs) from Firestore when user logs in
   useEffect(() => {
