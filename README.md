@@ -50,13 +50,13 @@ GitHub Pages only serves static files — it can't run scheduled jobs. Instead, 
 
 Since student drivers are typically minors, keep these emails strictly transactional (progress only, no marketing) and get parent consent at signup.
 
-The email includes the drives logged since the previous email (with route maps) and the dashboard's progress gauges, rendered to PNG server-side via `scripts/lib/staticImages.js` (OpenStreetMap tiles, no API key) and attached inline. Each email also carries an unsubscribe link, and the Account page has a matching "Send me weekly progress emails" checkbox — both read/write the same `emailPreferences/{email}` Firestore document (`weeklyEmailOptOut: boolean`; no document means subscribed). That document must be readable and writable without a signed-in session, since the unsubscribe link works for anyone who received the email:
+The email includes the drives logged since the previous email (with route maps) and the dashboard's progress gauges, rendered to PNG server-side via `scripts/lib/staticImages.js` (OpenStreetMap tiles, no API key) and attached inline. Each email also carries an unsubscribe link, and the Account page has a matching "Send me weekly progress emails" checkbox — both read/write the same `emailPreferences/{email}` Firestore document (`weeklyEmailOptOut: boolean`; no document means subscribed). That document must be readable and writable without a signed-in session, since the unsubscribe link works for anyone who received the email — see the `emailPreferences` block in [`firestore.rules`](firestore.rules), which keeps single-document reads open while blocking collection listing (the document IDs are email addresses) and pinning writes to the two expected fields.
 
-```
-match /emailPreferences/{email} {
-  allow read, write: if true;
-}
-```
+## Firestore security rules
+
+[`firestore.rules`](firestore.rules) is the source of truth for the database's access rules, with the reasoning for each block in comments. It is **not** deployed by any workflow — publish changes by pasting the file into the Firebase console (Firestore → Rules), which validates the syntax before you commit it. Edit the file and publish together so the two don't drift.
+
+One known gap is documented inline: `studentDirectory` still allows collection listing, so any signed-in user can enumerate every student's name and email. Rules can't constrain a query's filters, so closing it requires keying those documents by a hash of the email and reading them individually.
 
 ## State requirements data
 
@@ -88,22 +88,7 @@ This relies on two collections that aren't covered by the existing rules:
 
 **One-time setup after adding this feature to an existing deployment:**
 
-1. Add these rules:
-   ```
-   match /studentDirectory/{studentId} {
-     allow read: if signedIn();
-     allow write: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-   }
-
-   match /accessRequests/{requestId} {
-     allow create: if signedIn() &&
-       request.resource.data.requesterId == request.auth.uid &&
-       request.resource.data.requesterEmail == myEmail();
-     allow read, delete: if signedIn() &&
-       (request.auth.uid == resource.data.ownerId || request.auth.uid == resource.data.requesterId);
-     allow update: if false;
-   }
-   ```
+1. Add the `studentDirectory` and `accessRequests` rules — see [`firestore.rules`](firestore.rules).
 2. Backfill directory entries for students created before this feature existed:
    ```bash
    export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
