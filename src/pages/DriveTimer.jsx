@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { startMileageTracking } from '../utils/geo';
 import { keepScreenAwake } from '../utils/device';
+import { savePendingDrive } from '../utils/pendingDrive';
 
 // What to tell the driver about GPS before any mileage has accumulated.
 // `warning: true` means mileage will not be recorded in this state, so it is
@@ -78,19 +79,20 @@ export default function DriveTimer() {
     stopTracking.current?.();
     const endTime = new Date();
     const { miles: trackedMiles, start, end, route } = trackingRef.current;
-    navigate(`/log-drive/${studentId}`, {
-      state: {
-        prefill: {
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          distanceMiles: trackedMiles > 0 ? Number(trackedMiles.toFixed(1)) : null,
-          startLocation: start,
-          endLocation: end,
-          route: route && route.length > 1 ? route : null,
-        },
-      },
-      replace: true,
-    });
+    const prefill = {
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      distanceMiles: trackedMiles > 0 ? Number(trackedMiles.toFixed(1)) : null,
+      startLocation: start,
+      endLocation: end,
+      route: route && route.length > 1 ? route : null,
+    };
+
+    // Navigation state alone is lost if the log form's tab reloads before the
+    // drive is saved, which takes the GPS results with it — back it up, and
+    // mark the URL so the form knows to look. See src/utils/pendingDrive.js.
+    savePendingDrive(studentId, prefill);
+    navigate(`/log-drive/${studentId}?pending=1`, { state: { prefill }, replace: true });
   };
 
   return (
