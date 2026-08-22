@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { startMileageTracking } from '../utils/geo';
 import { keepScreenAwake } from '../utils/device';
 import { savePendingDrive } from '../utils/pendingDrive';
+import { localOffsetMinutes } from '../utils/driveTime';
 
 // What to tell the driver about GPS before any mileage has accumulated.
 // `warning: true` means mileage will not be recorded in this state, so it is
@@ -45,6 +46,9 @@ export default function DriveTimer() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const [startTime] = useState(() => new Date());
+  // Captured when the drive begins, so a drive that crosses into another zone
+  // is still written down in the one it started in — see utils/driveTime.js.
+  const [startOffsetMinutes] = useState(() => localOffsetMinutes());
   const [elapsed, setElapsed] = useState(0);
   const [miles, setMiles] = useState(0);
   const [gps, setGps] = useState({ status: 'waiting', accuracy: null });
@@ -82,6 +86,7 @@ export default function DriveTimer() {
     const prefill = {
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
+      startOffsetMinutes,
       distanceMiles: trackedMiles > 0 ? Number(trackedMiles.toFixed(1)) : null,
       startLocation: start,
       endLocation: end,
