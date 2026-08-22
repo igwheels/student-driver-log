@@ -90,7 +90,7 @@ This relies on two collections that aren't covered by the existing rules:
    node scripts/migrate-hash-student-directory.js --dry-run
    node scripts/migrate-hash-student-directory.js
    ```
-   This only reads student records and rewrites `studentDirectory`; student data and drive logs are never modified. It supersedes `migrate-add-student-directory.js`, which wrote the old `studentId`-keyed entries and is kept only for reference.
+   This only reads student records and rewrites `studentDirectory`; student data and drive logs are never modified, and it's idempotent, so it's also the way to rebuild the directory if it ever needs reconstructing.
 2. Then publish the `studentDirectory` and `accessRequests` rules — see [`firestore.rules`](firestore.rules).
 
 Run them in that order: the rules deny listing, which the old query-based lookup depended on, so publish them only once the hashed entries exist and the matching app version is deployed.
