@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { randomEncouragement } from '../data/encouragements';
 import DriveMap from '../components/DriveMap';
 import { shareContent } from '../utils/share';
 import { buildLogSnapshotUrl } from '../utils/snapshot';
+import { readPendingDrive, clearPendingDrive } from '../utils/pendingDrive';
 
 const DRIVE_TYPES = [
   { label: 'Local', value: 'local' },
@@ -27,8 +28,21 @@ export default function LogDrive() {
   const { studentId, logId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { addLog, updateLog, deleteDrive, getLogs, students } = useApp();
-  const prefill = location.state?.prefill;
+
+  // Arrived here from the drive timer. Navigation state is the normal path;
+  // sessionStorage is what survives a reload of this page, which would
+  // otherwise drop the GPS results silently.
+  const cameFromTimer = searchParams.get('pending') === '1';
+  const prefill = useMemo(
+    () => location.state?.prefill ?? (cameFromTimer ? readPendingDrive(studentId) : null),
+    [location.state, cameFromTimer, studentId]
+  );
+  // Distinct from "the drive had no GPS fix": here the results existed and
+  // were lost in transit, so the form says so rather than quietly saving a
+  // timed drive with no distance and no map.
+  const lostPrefill = cameFromTimer && !prefill;
 
   const isEditing = Boolean(logId);
   const existingLog = isEditing ? getLogs(studentId).find((l) => l.id === logId) : null;
@@ -102,6 +116,8 @@ export default function LogDrive() {
         endLocation: prefill?.endLocation ?? null,
         route: prefill?.route ?? null,
       });
+      // Consumed — don't let it attach itself to the next drive logged.
+      clearPendingDrive();
       navigate(`/dashboard/${studentId}`, { state: { celebrate: randomEncouragement() }, replace: true });
     }
   };
@@ -146,6 +162,24 @@ export default function LogDrive() {
       {existingLog?.startLocation && existingLog?.endLocation && (
         <div style={{ marginBottom: 20 }}>
           <DriveMap start={existingLog.startLocation} end={existingLog.endLocation} route={existingLog.route} />
+        </div>
+      )}
+
+      {lostPrefill && (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '12px 14px',
+            backgroundColor: '#FFF7E6',
+            border: '1px solid var(--line)',
+            borderRadius: 8,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          This drive's details couldn't be recovered — the page was reloaded before it was saved, and
+          the timed results are no longer available. The times below have defaulted to right now, so
+          check them along with the distance before saving. The route map isn't recoverable.
         </div>
       )}
 
