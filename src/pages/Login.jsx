@@ -8,6 +8,8 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  signOut,
   GoogleAuthProvider,
 } from 'firebase/auth';
 
@@ -33,6 +35,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [resetStatus, setResetStatus] = useState('');
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
+  const [resendStatus, setResendStatus] = useState('');
 
   const completeLogin = (profile) => {
     setUser(profile);
@@ -57,10 +61,14 @@ export default function Login() {
       const code = err.code || '';
       if (code.includes('user-not-found') || code.includes('invalid-credential')) {
         // No account yet for this email — create one (covers first-time visitors
-        // and invited co-parents signing up for the first time).
+        // and invited co-parents signing up for the first time). Require email
+        // verification before the new account can sign in, so a bogus/typo'd
+        // address can't be used to spin up accounts.
         try {
           const { user } = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-          completeLogin({ id: user.uid, name: trimmedEmail.split('@')[0], email: user.email });
+          await sendEmailVerification(user);
+          await signOut(auth);
+          setPendingVerificationEmail(trimmedEmail);
         } catch (createErr) {
           setError(createErr.message || 'Could not create an account with that email.');
         }
@@ -107,7 +115,56 @@ export default function Login() {
     }
   };
 
+  const handleResendVerification = async () => {
+    setError('');
+    setResendStatus('');
+    try {
+      // sendEmailVerification needs a live user session; sign back in briefly
+      // with the credentials still in the form, then sign out again.
+      const { user } = await signInWithEmailAndPassword(auth, pendingVerificationEmail, password);
+      if (user.emailVerified) {
+        // They verified since we last checked — just let them in.
+        completeLogin({ id: user.uid, name: user.displayName || pendingVerificationEmail.split('@')[0], email: user.email });
+        return;
+      }
+      await sendEmailVerification(user);
+      await signOut(auth);
+      setResendStatus(`Verification email resent to ${pendingVerificationEmail}.`);
+    } catch (err) {
+      setError(err.message || 'Could not resend the verification email.');
+    }
+  };
+
   const invitedEmail = searchParams.get('email');
+
+  if (pendingVerificationEmail) {
+    return (
+      <div className="login-screen">
+        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Student Driver Log" className="login-logo" />
+        <h1 className="login-title">Check your email</h1>
+        <p style={{ color: 'var(--muted)', textAlign: 'center', maxWidth: 340, marginTop: 8 }}>
+          We sent a verification link to <strong>{pendingVerificationEmail}</strong>. Click it to finish
+          creating your account, then come back here and sign in.
+        </p>
+        {error && <p style={{ color: '#F2A63C', fontSize: 13, marginTop: 12 }}>{error}</p>}
+        {resendStatus && <p style={{ color: '#7FA8F0', fontSize: 13, marginTop: 12 }}>{resendStatus}</p>}
+        <div style={{ width: '100%', maxWidth: 340, marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button className="btn btn-primary" onClick={handleResendVerification}>Resend verification email</button>
+          <button
+            type="button"
+            className="bio-link"
+            onClick={() => {
+              setPendingVerificationEmail('');
+              setError('');
+              setResendStatus('');
+            }}
+          >
+            Back to sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-screen">
