@@ -49,7 +49,7 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // studentDirectory/{studentId}
+    // studentDirectory/{sha256(email)}
     //   -> { studentId, ownerId, ownerName, firstName, lastName, email }
     //
     // Minimal cross-account record backing the "does a dashboard for this
