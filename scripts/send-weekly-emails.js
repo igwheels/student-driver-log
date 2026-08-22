@@ -15,6 +15,11 @@
  *   - Firestore mirroring the app's students + logs
  *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), GMAIL_EMAIL, GMAIL_APP_PASSWORD
  *
+ * Student names and drive fields come from user input and land in an HTML
+ * body delivered to everyone with access to the dashboard, so every value
+ * interpolated into `html` below is escaped and the subject is stripped of
+ * newlines — see src/utils/escapeHtml.js. The plain-text part needs neither.
+ *
  * Firestore structure expected:
  *   users/{uid}/students/{studentId}         -> { firstName, lastName, email, state,
  *                                                 ownerEmail, sharedWithEmails,
@@ -29,6 +34,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
 import { STATE_REQUIREMENTS } from '../src/data/stateRequirements.js';
 import { renderRouteMapPng, renderGaugePng } from './lib/staticImages.js';
+import { escapeHtml, sanitizeHeader } from '../src/utils/escapeHtml.js';
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 initializeApp({ credential: cert(serviceAccount) });
@@ -154,8 +160,8 @@ async function main() {
             (r) => `
             <div style="border:1px solid #DBE0EA;border-radius:10px;padding:14px;margin-bottom:10px;">
               <div style="display:flex;justify-content:space-between;font-size:14px;">
-                <div><strong>${r.date}</strong><div style="color:#7C86A0;font-size:12px;text-transform:capitalize;">${r.meta}</div></div>
-                <div style="font-weight:700;color:#2F6FDE;">${r.duration}</div>
+                <div><strong>${escapeHtml(r.date)}</strong><div style="color:#7C86A0;font-size:12px;text-transform:capitalize;">${escapeHtml(r.meta)}</div></div>
+                <div style="font-weight:700;color:#2F6FDE;">${escapeHtml(r.duration)}</div>
               </div>
               ${r.mapCid ? `<img src="cid:${r.mapCid}" width="500" style="width:100%;max-width:500px;border-radius:8px;margin-top:10px;display:block;" alt="Drive route map" />` : ''}
             </div>`
@@ -182,7 +188,7 @@ async function main() {
           to,
           from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
           replyTo: process.env.GMAIL_EMAIL,
-          subject: `🚗 ${student.firstName}'s Weekly Driving Progress`,
+          subject: sanitizeHeader(`🚗 ${student.firstName}'s Weekly Driving Progress`),
           text: `${student.firstName}'s Weekly Driving Progress
 
 Total supervised hours: ${fmt(total)}
@@ -197,15 +203,15 @@ Keep up the great work!
 ---
 Unsubscribe from weekly progress emails: ${unsubUrl}`,
           html: `
-            <h2>${student.firstName}'s Weekly Driving Progress</h2>
+            <h2>${escapeHtml(student.firstName)}'s Weekly Driving Progress</h2>
             ${gaugesHtmlBlock}
-            <p>${progressLine}</p>
+            <p>${escapeHtml(progressLine)}</p>
             <h3 style="margin-top:24px;">Drives since your last update</h3>
             ${driveHtmlBlock}
             <p>Keep up the great work! 🏁</p>
             <hr style="border:none;border-top:1px solid #DBE0EA;margin:24px 0 12px;" />
             <p style="color:#7C86A0;font-size:12px;">
-              <a href="${unsubUrl}" style="color:#7C86A0;">Unsubscribe from weekly progress emails</a>
+              <a href="${escapeHtml(unsubUrl)}" style="color:#7C86A0;">Unsubscribe from weekly progress emails</a>
             </p>`,
           attachments,
         })
