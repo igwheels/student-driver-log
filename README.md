@@ -1,6 +1,6 @@
 # Student Driver Log — Web
 
-A browser version of Student Driver Log, built with **React + Vite**, deployable for free on **GitHub Pages**. It mirrors the React Native app (same students, logs, gauges, PDF affidavit) with web-native equivalents for the platform-specific pieces (biometrics, storage, PDF export).
+A browser version of Student Driver Log, built with **React + Vite**, deployable for free on **GitHub Pages**. It mirrors the React Native app (same students, logs, gauges, PDF affidavit) with web-native equivalents for the platform-specific pieces (storage, PDF export).
 
 ## Design concept
 
@@ -36,10 +36,6 @@ npm run dev        # http://localhost:5173
    - Google → `signInWithPopup(auth, new GoogleAuthProvider())`
    - Apple → `OAuthProvider('apple.com')` via Firebase, once domain verification is set up in your Apple Developer account
 3. Add your GitHub Pages domain to Firebase Auth's **authorized domains** list, or sign-in redirects will fail.
-
-## Biometric login (WebAuthn)
-
-`src/utils/webauthn.js` uses the browser's native platform authenticator (Face ID / Touch ID / Windows Hello) via the WebAuthn API. This scaffold is a **working client-only demo** — it proves the UX, but real WebAuthn security comes from a relying-party server that issues challenges and verifies attestations server-side. Before shipping, either stand up a small verification endpoint or use a library like [SimpleWebAuthn](https://simplewebauthn.dev/) with Firebase Cloud Functions as the backend.
 
 ## Weekly progress emails
 
@@ -113,8 +109,9 @@ src/components/Gauge.jsx         SVG speedometer-style dial gauge
 src/components/ShareModal.jsx    sharing UI modal
 src/pages/                       Login, Students, AddStudent, Dashboard, DriveTimer, LogDrive
 src/utils/pdfExport.js           affidavit + log table PDF (jsPDF)
-src/utils/webauthn.js            biometric login (WebAuthn)
 src/utils/invitations.js         invitation email utilities
+src/utils/escapeHtml.js          HTML/header escaping for outbound emails
+src/utils/emailHash.js           studentDirectory document key (SHA-256 of email)
 scripts/send-weekly-emails.js    weekly email cron script (run by GitHub Actions)
 scripts/migrate-add-sharing-fields.js  migrate existing students for sharing feature
 .github/workflows/deploy.yml     builds + publishes to GitHub Pages on push
