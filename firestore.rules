@@ -64,21 +64,19 @@ service cloud.firestore {
     // access requests for that student to themselves. Update and delete now
     // check the stored owner as well.
     //
-    // STILL OPEN: `list` remains allowed because findExistingStudentByEmail()
-    // finds entries with a where('email','==') query, and Firestore rules
-    // cannot inspect a query's filters — there is no way to require that
-    // filter, so a signed-in user can still read the whole collection and
-    // enumerate every student's name and email. Fixing that means keying
-    // documents by a hash of the email and reading one doc directly, then
-    // replacing the read rules with:
+    // Documents are keyed by a SHA-256 of the student's email, so the
+    // duplicate-email check is a direct read of one known document. That is
+    // what lets `list` be denied: rules cannot inspect a query's filters, so
+    // back when the check ran a where('email','==') query, permitting it meant
+    // permitting the whole collection to be read out — any signed-in user
+    // could enumerate every student's name and email.
     //
-    //     allow get: if signedIn();
-    //     allow list: if false;
-    //
-    // Publish that only together with the code change, or Add Student breaks.
+    // `get` stays open to signed-in users; finding an entry now requires
+    // already knowing the address it was derived from.
     // ---------------------------------------------------------------------
-    match /studentDirectory/{studentId} {
-      allow read: if signedIn();
+    match /studentDirectory/{emailHash} {
+      allow get: if signedIn();
+      allow list: if false;
       allow create: if signedIn() &&
         request.resource.data.ownerId == request.auth.uid;
       allow update: if signedIn() &&
@@ -92,9 +90,14 @@ service cloud.firestore {
     // accessRequests/{requestId}
     //
     // One pending request per "let me see this student's dashboard" ask.
-    // ownerId is now verified against the student's real owner in
-    // studentDirectory rather than trusted from the client, so a request
+    // ownerId is verified rather than trusted from the client, so a request
     // can't be aimed at an account that doesn't actually own the student.
+    // That check now reads the student document directly — proving the
+    // student really does live under the claimed owner's account — instead
+    // of going through studentDirectory, whose keys are no longer studentIds.
+    // (get()/exists() inside rules are evaluated with full access, so this
+    // works even though the requester can't read that student themselves.)
+    //
     // The requester's identity was already pinned to their own uid/email,
     // which is what makes it safe for approveRequest() to grant access to
     // the address stored here; update stays closed so it can't be swapped
@@ -105,9 +108,7 @@ service cloud.firestore {
         request.resource.data.requesterId == request.auth.uid &&
         request.resource.data.requesterEmail == myEmail() &&
         request.resource.data.status == 'pending' &&
-        exists(/databases/$(database)/documents/studentDirectory/$(request.resource.data.studentId)) &&
-        request.resource.data.ownerId ==
-          get(/databases/$(database)/documents/studentDirectory/$(request.resource.data.studentId)).data.ownerId;
+        exists(/databases/$(database)/documents/users/$(request.resource.data.ownerId)/students/$(request.resource.data.studentId));
       allow read, delete: if signedIn() &&
         (request.auth.uid == resource.data.ownerId || request.auth.uid == resource.data.requesterId);
       allow update: if false;

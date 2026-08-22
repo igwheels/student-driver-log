@@ -2,8 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
-  addDoc, collection, collectionGroup, deleteDoc, doc, getDocs, query, setDoc, updateDoc, where,
+  addDoc, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
+import { emailDocId } from '../utils/emailHash';
 
 const AppContext = createContext(null);
 const STORAGE_KEY = 'sdl_data_v1';
@@ -180,11 +181,24 @@ export function AppProvider({ children }) {
     if (user?.id) {
       try {
         await setDoc(doc(db, 'users', user.id, 'students', id), newStudent);
-        // A small, separate directory entry (not the full student record) so
-        // addStudent() can check whether a dashboard for this student's email
-        // already exists elsewhere, without exposing every owner's full
-        // student/logs data to a cross-account lookup.
-        await setDoc(doc(db, 'studentDirectory', id), {
+      } catch (e) {
+        console.error('Failed to save student to Firestore:', e);
+      }
+
+      // A small, separate directory entry (not the full student record) so
+      // addStudent() can check whether a dashboard for this student's email
+      // already exists elsewhere, without exposing every owner's full
+      // student/logs data to a cross-account lookup. Keyed by a hash of the
+      // email so that check is a direct read rather than a query — see
+      // src/utils/emailHash.js.
+      //
+      // Written separately from the student itself, and deliberately not
+      // fatal: one entry per email means a second student registered under an
+      // address someone else already used can't claim the entry (the rules
+      // only let its owner overwrite it). That student is still created and
+      // fully usable — it just isn't the one the directory points at.
+      try {
+        await setDoc(doc(db, 'studentDirectory', await emailDocId(newStudent.email)), {
           studentId: id,
           ownerId: user.id,
           ownerName: user.name ?? '',
@@ -193,7 +207,7 @@ export function AppProvider({ children }) {
           email: normalizeEmail(newStudent.email || ''),
         });
       } catch (e) {
-        console.error('Failed to save student to Firestore:', e);
+        console.warn('Directory entry not written for this student (an entry for that email may already belong to another account):', e);
       }
     }
     return id;
@@ -205,11 +219,13 @@ export function AppProvider({ children }) {
   const findExistingStudentByEmail = async (email) => {
     const normalized = normalizeEmail(email);
     if (!normalized) return null;
-    const snap = await getDocs(query(collection(db, 'studentDirectory'), where('email', '==', normalized)));
-    if (snap.empty) return null;
-    // Prefer an entry that isn't already the current user's own, if there's a choice.
-    const match = snap.docs.find((d) => d.data().ownerId !== user?.id) ?? snap.docs[0];
-    return { id: match.id, ...match.data() };
+    // A direct read of the one document this email maps to. This used to be a
+    // where('email','==') query, which forced the rules to allow listing the
+    // whole collection — and with it, enumeration of every student's name and
+    // email by any signed-in user.
+    const snap = await getDoc(doc(db, 'studentDirectory', await emailDocId(normalized)));
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
   };
 
   // Files a request to be added as a shared viewer on someone else's
@@ -306,13 +322,38 @@ export function AppProvider({ children }) {
       throw new Error('Only the owner can edit a student');
     }
     const email = newEmail.trim();
+    const previousEmail = student.email || '';
 
     setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, email } : s)));
 
     await updateDoc(doc(db, 'users', user.id, 'students', studentId), { email });
-    await setDoc(doc(db, 'studentDirectory', studentId), { email: normalizeEmail(email) }, { merge: true }).catch(
-      (e) => console.warn('Failed to sync studentDirectory email:', e)
-    );
+
+    // The directory is keyed by the email, so changing it moves the entry to a
+    // new document rather than editing one in place: write the new key first,
+    // then drop the old one. Neither step is fatal — the student's own record
+    // is already updated above, and a stale directory entry only affects the
+    // duplicate-email check.
+    try {
+      await setDoc(doc(db, 'studentDirectory', await emailDocId(email)), {
+        studentId,
+        ownerId: user.id,
+        ownerName: user.name ?? '',
+        firstName: student.firstName,
+        lastName: student.lastName,
+        email: normalizeEmail(email),
+      });
+      if (previousEmail && normalizeEmail(previousEmail) !== normalizeEmail(email)) {
+        // Only remove the old entry if it actually points at this student —
+        // another student could legitimately be registered under that address.
+        const oldRef = doc(db, 'studentDirectory', await emailDocId(previousEmail));
+        const oldSnap = await getDoc(oldRef);
+        if (oldSnap.exists() && oldSnap.data().studentId === studentId) {
+          await deleteDoc(oldRef);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to sync studentDirectory entry:', e);
+    }
   };
 
   const deleteStudent = async (studentId) => {
