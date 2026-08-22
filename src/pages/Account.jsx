@@ -10,7 +10,7 @@ import {
   reauthenticateWithPopup,
   GoogleAuthProvider,
 } from 'firebase/auth';
-import { watchLocationPermissionStatus, requestLocationPermission } from '../utils/geo';
+import { watchLocationPermissionStatus, requestLocationPermission, probeLocationAccess } from '../utils/geo';
 import {
   getWeeklyEmailOptOut,
   setWeeklyEmailOptOut,
@@ -19,15 +19,47 @@ import {
 
 const DELETE_PHRASE = 'Delete this account and all its dashboards forever.';
 
+// What the browser's permission registry says. This is only ever a hint: it
+// reports the *site's* permission and is blind to the device refusing at the
+// OS level, so 'granted' does not mean location actually works. The probe
+// below is what settles it.
 const LOCATION_STATUS_INFO = {
-  granted: { label: 'Allowed', color: 'var(--success)', hint: 'Drive mileage will be estimated from GPS.' },
+  granted: { label: 'Allowed for this site', color: 'var(--muted)', hint: 'Checking whether your device actually provides a location…' },
   denied: {
     label: 'Blocked',
     color: 'var(--danger)',
     hint: 'Mileage won’t auto-fill. Allow location for this site in your browser settings to re-enable it.',
   },
   prompt: { label: 'Not yet asked', color: 'var(--muted)', hint: 'You’ll be asked to allow it below.' },
-  unsupported: { label: 'Unavailable', color: 'var(--muted)', hint: 'This browser doesn’t support checking location permission status.' },
+  unsupported: { label: 'Unknown', color: 'var(--muted)', hint: 'This browser can’t report permission status — check it directly instead.' },
+};
+
+// What actually happened when a position was requested. Authoritative.
+const LOCATION_PROBE_INFO = {
+  working: { label: 'Working', color: 'var(--success)', hint: 'Drive mileage will be estimated from GPS.' },
+  imprecise: {
+    label: 'Too imprecise',
+    color: 'var(--danger)',
+    hint: 'Location is on, but the readings are too coarse to measure a drive. Turn on precise location for this site — on iOS that’s Settings › Privacy & Security › Location Services › Safari Websites › Precise Location.',
+  },
+  denied: {
+    label: 'Blocked',
+    color: 'var(--danger)',
+    // The case that prompted this: the site permission read as allowed while
+    // the device refused, and the page reported it as working.
+    hint: 'Your device refused to provide a location. Check both this site’s permission and your device’s location settings — on iOS that’s Settings › Privacy & Security › Location Services, and the Safari Websites entry within it.',
+  },
+  unavailable: {
+    label: 'No signal',
+    color: 'var(--danger)',
+    hint: 'Your device couldn’t determine a position. This is common indoors or in a garage.',
+  },
+  timeout: {
+    label: 'No response',
+    color: 'var(--danger)',
+    hint: 'Your device didn’t return a position in time. Try again, ideally outdoors.',
+  },
+  unsupported: { label: 'Not supported', color: 'var(--muted)', hint: 'This browser doesn’t provide location at all.' },
 };
 
 export default function Account() {
@@ -38,6 +70,27 @@ export default function Account() {
 
   const [locationStatus, setLocationStatus] = useState(null);
   useEffect(() => watchLocationPermissionStatus(setLocationStatus), []);
+
+  const [probe, setProbe] = useState(null);
+  const [probing, setProbing] = useState(false);
+
+  const runProbe = () => {
+    setProbing(true);
+    probeLocationAccess()
+      .then(setProbe)
+      .finally(() => setProbing(false));
+  };
+
+  // Probe automatically only when the site permission already says granted —
+  // that's the case where the answer can be wrong, and asking costs no prompt
+  // because permission is already held. When the state is 'prompt' or
+  // 'denied', probing would either raise a surprise permission dialog or tell
+  // us nothing new, so it's left to the buttons below.
+  useEffect(() => {
+    if (locationStatus === 'granted') runProbe();
+    else setProbe(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationStatus]);
 
   // No document for this email means subscribed by default — matches the
   // weekly-email sender's own default, so a brand-new account starts opted in.
@@ -157,24 +210,49 @@ export default function Account() {
         {!locationStatus && (
           <p style={{ fontSize: 14, color: 'var(--muted)' }}>Checking…</p>
         )}
-        {locationStatus && (
-          <>
-            <p style={{ fontSize: 14, marginBottom: 4 }}>
-              Status:{' '}
-              <span style={{ fontWeight: 700, color: LOCATION_STATUS_INFO[locationStatus].color }}>
-                {LOCATION_STATUS_INFO[locationStatus].label}
-              </span>
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-              {LOCATION_STATUS_INFO[locationStatus].hint}
-            </p>
-            {locationStatus === 'prompt' && (
-              <button className="btn btn-outline" onClick={requestLocationPermission}>
-                Allow location access
-              </button>
-            )}
-          </>
-        )}
+        {locationStatus && (() => {
+          // The probe wins wherever it has run: it reflects what the device
+          // actually did, while the permission state only reflects what this
+          // site was granted.
+          const info = probe
+            ? LOCATION_PROBE_INFO[probe.state] ?? LOCATION_STATUS_INFO.unsupported
+            : LOCATION_STATUS_INFO[locationStatus];
+          const showCheckButton =
+            !probing && (locationStatus === 'unsupported' || (probe && probe.state !== 'working'));
+
+          return (
+            <>
+              <p style={{ fontSize: 14, marginBottom: 4 }}>
+                Status:{' '}
+                <span style={{ fontWeight: 700, color: info.color }}>
+                  {probing ? 'Checking…' : info.label}
+                </span>
+                {probe?.state === 'imprecise' && probe.accuracy != null && (
+                  <span style={{ color: 'var(--muted)' }}> (±{Math.round(probe.accuracy)} m)</span>
+                )}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>{info.hint}</p>
+
+              {probe?.message && (
+                <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, opacity: 0.8 }}>
+                  Reported by your browser: {probe.message}
+                  {probe.code != null ? ` (code ${probe.code})` : ''}
+                </p>
+              )}
+
+              {locationStatus === 'prompt' && (
+                <button className="btn btn-outline" onClick={requestLocationPermission}>
+                  Allow location access
+                </button>
+              )}
+              {showCheckButton && (
+                <button className="btn btn-outline" onClick={runProbe}>
+                  Check again
+                </button>
+              )}
+            </>
+          );
+        })()}
       </section>
 
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
