@@ -13,8 +13,13 @@ const DRIVE_TYPES = [
   { label: 'Highway', value: 'highway' },
 ];
 
+// Local calendar date, not UTC. toISOString() would roll over to tomorrow
+// for any evening drive west of Greenwich — at 8pm US Eastern it returns the
+// next day — so the form defaulted an evening drive to tomorrow's date, and
+// the "no future dates" rule below would then reject its own default.
 function toDateInputValue(d) {
-  return d.toISOString().slice(0, 10);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 function toTimeInputValue(d) {
   return d.toTimeString().slice(0, 5);
@@ -94,6 +99,16 @@ export default function LogDrive() {
     e.preventDefault();
     setError('');
     if (durationMinutes <= 0) return setError('End time must be after start time.');
+
+    // A drive can only be logged after it has happened. The cutoff is the end
+    // of the current minute rather than this instant, because the form's
+    // inputs have minute precision — entering the current time shouldn't be
+    // rejected for being a few seconds ahead of the clock.
+    const latestAllowed = new Date();
+    latestAllowed.setSeconds(59, 999);
+    if (startDate > latestAllowed) return setError("A drive can't start in the future.");
+    if (endDate > latestAllowed) return setError("A drive can't end in the future.");
+
     if (distance && isNaN(parseFloat(distance))) return setError('Distance must be a number of miles.');
 
     const fields = {
@@ -186,7 +201,14 @@ export default function LogDrive() {
       <form onSubmit={handleSave}>
         <div className="field">
           <label>Date</label>
-          <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} />
+          {/* Stops a later date being picked at all; handleSave still checks,
+              since the date can also be typed and the times aren't capped. */}
+          <input
+            type="date"
+            value={dateStr}
+            max={toDateInputValue(new Date())}
+            onChange={(e) => setDateStr(e.target.value)}
+          />
         </div>
         <div className="field">
           <label>Start Time</label>
