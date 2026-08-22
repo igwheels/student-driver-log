@@ -63,6 +63,48 @@ export function watchLocationPermissionStatus(onChange) {
   };
 }
 
+/**
+ * Actually asks for a position and reports what happens, rather than what the
+ * permission registry claims.
+ *
+ * navigator.permissions.query() only knows the *site's* permission. It will
+ * happily answer 'granted' while the device refuses at the OS level — iOS
+ * Settings › Privacy & Security › Location Services › Safari Websites set to
+ * Never does exactly that. The Account page previously reported that state as
+ * "Allowed", so someone whose location was switched off system-wide was told
+ * everything was fine while no drive could record any mileage.
+ *
+ * Resolves (never rejects) to { state, accuracy?, code?, message? } where
+ * state is 'working' | 'imprecise' | 'denied' | 'unavailable' | 'timeout' |
+ * 'unsupported'. 'imprecise' means a position came back but is too coarse to
+ * accumulate mileage from — the other way tracking fails while looking fine.
+ */
+export function probeLocationAccess() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve({ state: 'unsupported' });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const accuracy = position.coords.accuracy ?? null;
+        resolve({
+          state: accuracy != null && accuracy > MAX_ACCURACY_METERS ? 'imprecise' : 'working',
+          accuracy,
+        });
+      },
+      (error) => {
+        const code = error?.code ?? null;
+        const message = error?.message || '';
+        if (code === GEO_PERMISSION_DENIED) resolve({ state: 'denied', code, message });
+        else if (code === GEO_POSITION_UNAVAILABLE) resolve({ state: 'unavailable', code, message });
+        else resolve({ state: 'timeout', code, message });
+      },
+      // Deliberately not high-accuracy: this is a "does location work at all"
+      // check, and a cached recent fix answers that just as well.
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
 export function requestLocationPermission() {
   if (!navigator.geolocation) return;
   // Triggers the browser's permission prompt now, so it's already granted
