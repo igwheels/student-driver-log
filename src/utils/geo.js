@@ -13,6 +13,10 @@ const MAX_JUMP_MILES = 1;
 // mode) reports, which is the case actually worth rejecting.
 const MAX_ACCURACY_METERS = 100;
 
+// GeolocationPositionError codes, per spec.
+const GEO_PERMISSION_DENIED = 1;
+const GEO_POSITION_UNAVAILABLE = 2;
+
 function toRadians(deg) {
   return (deg * Math.PI) / 180;
 }
@@ -100,6 +104,10 @@ export function startMileageTracking(onUpdate) {
   let watchId = null;
   let status = 'waiting';
   let lastAccuracy = null;
+  // The browser's own account of the last failure, passed through so the UI
+  // can show it. Geolocation failures are otherwise indistinguishable from
+  // the outside, and guessing at them from behaviour alone has cost time.
+  let lastError = null;
 
   const report = () =>
     onUpdate({
@@ -109,6 +117,7 @@ export function startMileageTracking(onUpdate) {
       route: route.slice(),
       status,
       accuracy: lastAccuracy,
+      error: lastError,
     });
 
   if (!navigator.geolocation) {
@@ -133,6 +142,8 @@ export function startMileageTracking(onUpdate) {
         return;
       }
 
+      lastError = null; // a usable fix supersedes any earlier failure
+
       if (lastFix) {
         const delta = haversineMiles(lastFix.latitude, lastFix.longitude, latitude, longitude);
         // An implausible jump between fixes doesn't count toward mileage — it
@@ -150,8 +161,15 @@ export function startMileageTracking(onUpdate) {
       report();
     },
     (error) => {
-      if (error.code === error.PERMISSION_DENIED) status = 'denied';
-      else if (error.code === error.POSITION_UNAVAILABLE) status = 'unavailable';
+      // Compared against the spec's numeric codes rather than constants read
+      // off the error object. `error.code === error.PERMISSION_DENIED` looks
+      // equivalent but is not: hand it anything that isn't a real
+      // GeolocationPositionError and both sides are undefined, so it matches
+      // and every failure — a plain timeout included — is reported as a
+      // denied permission. Comparing to 1 and 2 simply doesn't match instead.
+      lastError = { code: error?.code ?? null, message: error?.message || '' };
+      if (error?.code === GEO_PERMISSION_DENIED) status = 'denied';
+      else if (error?.code === GEO_POSITION_UNAVAILABLE) status = 'unavailable';
       // A TIMEOUT just means no fix yet; watchPosition keeps trying, so the
       // honest state is still 'waiting' unless we already had one.
       else if (route.length === 0) status = 'waiting';

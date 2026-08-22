@@ -23,7 +23,9 @@ function gpsNotice({ status, accuracy }) {
       return {
         label: 'Location access blocked',
         warning: true,
-        hint: "Mileage won't be recorded. Allow location for this site in your browser settings, then restart the drive. You can still log the distance by hand.",
+        // The site-level permission can read as allowed while the device
+        // still refuses, so name both places rather than only the browser.
+        hint: "Mileage won't be recorded. Check location is allowed both for this site and for your browser in the phone's privacy settings — on iOS that's Settings › Privacy & Security › Location Services › Safari Websites. You can still log the distance by hand.",
       };
     case 'unavailable':
       return {
@@ -64,7 +66,7 @@ export default function DriveTimer() {
     stopTracking.current = startMileageTracking((update) => {
       trackingRef.current = update;
       setMiles(update.miles);
-      setGps({ status: update.status, accuracy: update.accuracy });
+      setGps({ status: update.status, accuracy: update.accuracy, error: update.error });
     });
     releaseWakeLock.current = keepScreenAwake();
     return () => {
@@ -121,6 +123,15 @@ export default function DriveTimer() {
         {gpsNotice(gps).hint ??
           'Keep this screen open for accurate GPS mileage — tracking pauses if you switch apps or lock your phone.'}
       </p>
+      {/* The browser's own wording for the failure. Kept small and last: it's
+          for working out what actually went wrong, which reasoning from the
+          symptom alone has proven unreliable. */}
+      {gps.error?.message && (
+        <p className="timer-gps-hint" style={{ marginTop: 8, opacity: 0.7 }}>
+          Reported by your browser: {gps.error.message}
+          {gps.error.code != null ? ` (code ${gps.error.code})` : ''}
+        </p>
+      )}
     </div>
   );
 }
