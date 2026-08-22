@@ -1,0 +1,38 @@
+name: Re-key student directory by email hash (one-off)
+
+# Manual-only: runs scripts/migrate-hash-student-directory.js, which re-keys
+# the studentDirectory collection from studentId to a hash of the student's
+# email so the security rules can deny listing it (see README.md).
+#
+# The script only reads student records (via a collectionGroup query) and
+# writes to studentDirectory. It never touches student documents or their
+# logs subcollections. Safe to re-run — it rebuilds the same entries.
+#
+# Leave "Dry run" checked the first time: that prints the exact plan and
+# writes nothing. Uncheck it to apply.
+#
+# Delete this workflow once the migration has been applied.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print the plan, write nothing)'
+        type: boolean
+        required: true
+        default: true
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Run migration
+        run: |
+          echo "Mode: ${{ inputs.dry_run && 'DRY RUN (no writes)' || 'APPLY (writes and deletes)' }}"
+          node scripts/migrate-hash-student-directory.js ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
