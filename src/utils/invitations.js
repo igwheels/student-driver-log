@@ -6,7 +6,13 @@
  * Emails are actually sent by scripts/send-invitation-emails.js, run on a
  * schedule via .github/workflows/send-invitations.yml (Gmail + Nodemailer,
  * same setup as the weekly progress emails — no extra service required).
+ *
+ * ownerName and studentName are attacker-controllable (a display name and a
+ * free-text student name), and the recipient address is whatever the sharer
+ * typed — so every value interpolated into the HTML below is escaped, and
+ * the subject is stripped of newlines. See src/utils/escapeHtml.js.
  */
+import { escapeHtml, sanitizeHeader } from './escapeHtml.js';
 
 export const generateSignupLink = (email, appUrl) => {
   // HashRouter + GitHub Pages base path: the query string must live inside
@@ -27,25 +33,27 @@ Open Student Driver Log: ${signupUrl}
 This is an automatic message from Student Driver Log. If you didn't expect this, you can safely ignore it.`;
 
   return {
-    subject: `${invitation.ownerName} shared ${invitation.studentName}'s driving log with you`,
+    subject: sanitizeHeader(
+      `${invitation.ownerName} shared ${invitation.studentName}'s driving log with you`
+    ),
     text,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #141C2E; margin-bottom: 16px;">You've got access to a Student Driver Log!</h2>
 
         <p style="color: #4B5563; line-height: 1.6; margin-bottom: 16px;">
-          <strong>${invitation.ownerName}</strong> (${invitation.ownerEmail}) shared
-          <strong> ${invitation.studentName}</strong>'s Student Driver Log with you.
+          <strong>${escapeHtml(invitation.ownerName)}</strong> (${escapeHtml(invitation.ownerEmail)}) shared
+          <strong> ${escapeHtml(invitation.studentName)}</strong>'s Student Driver Log with you.
         </p>
 
         <p style="color: #4B5563; line-height: 1.6; margin-bottom: 24px;">
-          Sign in with this email address (${invitation.email}) to view driving hours, progress toward
+          Sign in with this email address (${escapeHtml(invitation.email)}) to view driving hours, progress toward
           state requirements, and log drives yourself. If you don't have an account yet, just enter
           this email and a password to create one — access is granted automatically.
         </p>
 
         <p style="text-align: center; margin-bottom: 24px;">
-          <a href="${signupUrl}" style="
+          <a href="${escapeHtml(signupUrl)}" style="
             display: inline-block;
             padding: 12px 32px;
             background-color: #2F6FDE;
