@@ -38,6 +38,11 @@ service cloud.firestore {
     // Residual, accepted for now: anyone who knows an address can still
     // toggle that address's preference. Closing that needs a signed token in
     // the unsubscribe URL, which is a code change, not a rules change.
+    //
+    // Delete is narrower than write on purpose. Account deletion removes the
+    // document so the address isn't left on file, but only the signed-in
+    // owner of that address may do it — an open delete would let anyone clear
+    // someone's opt-out and quietly resubscribe them.
     // ---------------------------------------------------------------------
     match /emailPreferences/{email} {
       allow get: if true;
@@ -45,7 +50,7 @@ service cloud.firestore {
       allow create, update: if
         request.resource.data.keys().hasOnly(['weeklyEmailOptOut', 'updatedAt']) &&
         request.resource.data.weeklyEmailOptOut is bool;
-      allow delete: if false;
+      allow delete: if signedIn() && email == myEmail();
     }
 
     // ---------------------------------------------------------------------
@@ -158,6 +163,12 @@ service cloud.firestore {
     // The content of that email is user-controlled by design (owner and
     // student names); it is escaped at render time in
     // src/utils/invitations.js, which is what keeps it from carrying markup.
+    //
+    // The owner can read and delete their own queued invitations so that
+    // deleting a student takes its pending invitations with it, rather than
+    // leaving records naming the student and the recipient's address behind.
+    // Scoped to resource.data.ownerId, which is also what makes the
+    // owner-filtered query the cleanup runs a valid list.
     // ---------------------------------------------------------------------
     match /invitations/{invitationId} {
       allow create: if signedIn() &&
@@ -169,7 +180,8 @@ service cloud.firestore {
           'email', 'studentId', 'studentName', 'ownerId', 'ownerName',
           'ownerEmail', 'createdAt', 'emailSent'
         ]);
-      allow read, update, delete: if false;
+      allow read, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow update: if false;
     }
 
     match /{document=**} {

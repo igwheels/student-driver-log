@@ -11,7 +11,11 @@ import {
   GoogleAuthProvider,
 } from 'firebase/auth';
 import { watchLocationPermissionStatus, requestLocationPermission } from '../utils/geo';
-import { getWeeklyEmailOptOut, setWeeklyEmailOptOut } from '../utils/emailPreferences';
+import {
+  getWeeklyEmailOptOut,
+  setWeeklyEmailOptOut,
+  deleteWeeklyEmailPreference,
+} from '../utils/emailPreferences';
 
 const DELETE_PHRASE = 'Delete this account and all its dashboards forever.';
 
@@ -73,8 +77,20 @@ export default function Account() {
   const performDeletion = async () => {
     const owned = students.filter((s) => s.ownerId === user.id);
     for (const s of owned) {
+      // Also clears each student's directory entry, access requests, and
+      // queued invitations — see deleteStudent in AppContext.jsx.
       await deleteStudent(s.id);
     }
+
+    // The preference document is keyed by the email address itself, so
+    // leaving it would keep that address on file after the account is gone.
+    // Not fatal: the account deletion below matters more than this record.
+    try {
+      await deleteWeeklyEmailPreference(user.email);
+    } catch (e) {
+      console.warn('Failed to remove email preference:', e);
+    }
+
     await deleteUser(auth.currentUser);
     logout();
     navigate('/');

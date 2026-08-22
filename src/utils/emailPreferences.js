@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 // One doc per email address (not per account) so the unsubscribe link in an
@@ -19,4 +19,15 @@ export async function setWeeklyEmailOptOut(email, optOut) {
     { weeklyEmailOptOut: optOut, updatedAt: new Date().toISOString() },
     { merge: true }
   );
+}
+
+/**
+ * Removes the preference document entirely, used when an account is deleted —
+ * the document ID is the address itself, so leaving it behind would keep that
+ * address on file after the account is gone. The rules only permit this for
+ * the signed-in user's own address, so it can't be used to clear someone
+ * else's opt-out and quietly resubscribe them.
+ */
+export async function deleteWeeklyEmailPreference(email) {
+  await deleteDoc(doc(db, 'emailPreferences', normalizeEmail(email)));
 }
