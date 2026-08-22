@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#141C2E" />
+    <!--
+      Vite fingerprints the JS and CSS filenames, so those cache forever
+      safely — but this file names them, and a stale copy of it keeps serving
+      an old build long after a deploy. That has repeatedly looked like "the
+      feature didn't ship" on a phone. Ask for a revalidation each load; the
+      document is ~1KB, and everything it references is still cached.
+    -->
+    <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
     <title>Student Driver Log</title>
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
