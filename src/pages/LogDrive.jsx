@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { randomEncouragement } from '../data/encouragements';
 import DriveMap from '../components/DriveMap';
 import { shareContent } from '../utils/share';
 import { buildLogSnapshotUrl } from '../utils/snapshot';
+import { readPendingDrive, clearPendingDrive } from '../utils/pendingDrive';
 
 const DRIVE_TYPES = [
   { label: 'Local', value: 'local' },
@@ -12,8 +13,13 @@ const DRIVE_TYPES = [
   { label: 'Highway', value: 'highway' },
 ];
 
+// Local calendar date, not UTC. toISOString() would roll over to tomorrow
+// for any evening drive west of Greenwich — at 8pm US Eastern it returns the
+// next day — so the form defaulted an evening drive to tomorrow's date, and
+// the "no future dates" rule below would then reject its own default.
 function toDateInputValue(d) {
-  return d.toISOString().slice(0, 10);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 function toTimeInputValue(d) {
   return d.toTimeString().slice(0, 5);
@@ -27,8 +33,21 @@ export default function LogDrive() {
   const { studentId, logId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { addLog, updateLog, deleteDrive, getLogs, students } = useApp();
-  const prefill = location.state?.prefill;
+
+  // Arrived here from the drive timer. Navigation state is the normal path;
+  // sessionStorage is what survives a reload of this page, which would
+  // otherwise drop the GPS results silently.
+  const cameFromTimer = searchParams.get('pending') === '1';
+  const prefill = useMemo(
+    () => location.state?.prefill ?? (cameFromTimer ? readPendingDrive(studentId) : null),
+    [location.state, cameFromTimer, studentId]
+  );
+  // Distinct from "the drive had no GPS fix": here the results existed and
+  // were lost in transit, so the form says so rather than quietly saving a
+  // timed drive with no distance and no map.
+  const lostPrefill = cameFromTimer && !prefill;
 
   const isEditing = Boolean(logId);
   const existingLog = isEditing ? getLogs(studentId).find((l) => l.id === logId) : null;
@@ -80,6 +99,16 @@ export default function LogDrive() {
     e.preventDefault();
     setError('');
     if (durationMinutes <= 0) return setError('End time must be after start time.');
+
+    // A drive can only be logged after it has happened. The cutoff is the end
+    // of the current minute rather than this instant, because the form's
+    // inputs have minute precision — entering the current time shouldn't be
+    // rejected for being a few seconds ahead of the clock.
+    const latestAllowed = new Date();
+    latestAllowed.setSeconds(59, 999);
+    if (startDate > latestAllowed) return setError("A drive can't start in the future.");
+    if (endDate > latestAllowed) return setError("A drive can't end in the future.");
+
     if (distance && isNaN(parseFloat(distance))) return setError('Distance must be a number of miles.');
 
     const fields = {
@@ -102,6 +131,8 @@ export default function LogDrive() {
         endLocation: prefill?.endLocation ?? null,
         route: prefill?.route ?? null,
       });
+      // Consumed — don't let it attach itself to the next drive logged.
+      clearPendingDrive();
       navigate(`/dashboard/${studentId}`, { state: { celebrate: randomEncouragement() }, replace: true });
     }
   };
@@ -149,10 +180,35 @@ export default function LogDrive() {
         </div>
       )}
 
+      {lostPrefill && (
+        <div
+          style={{
+            marginBottom: 20,
+            padding: '12px 14px',
+            backgroundColor: '#FFF7E6',
+            border: '1px solid var(--line)',
+            borderRadius: 8,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          This drive's details couldn't be recovered — the page was reloaded before it was saved, and
+          the timed results are no longer available. The times below have defaulted to right now, so
+          check them along with the distance before saving. The route map isn't recoverable.
+        </div>
+      )}
+
       <form onSubmit={handleSave}>
         <div className="field">
           <label>Date</label>
-          <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} />
+          {/* Stops a later date being picked at all; handleSave still checks,
+              since the date can also be typed and the times aren't capped. */}
+          <input
+            type="date"
+            value={dateStr}
+            max={toDateInputValue(new Date())}
+            onChange={(e) => setDateStr(e.target.value)}
+          />
         </div>
         <div className="field">
           <label>Start Time</label>
