@@ -236,6 +236,13 @@ export default function Account() {
         )}
         {deleteError && <p style={{ fontSize: 13, marginTop: 10, color: 'var(--danger)' }}>{deleteError}</p>}
       </section>
+
+      {/* Which build this device is actually running. Phones cache the app
+          shell aggressively, and without this the only way to tell a stale
+          copy from a broken feature is to reason backwards from the UI. */}
+      <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 32, textAlign: 'center' }}>
+        Build {__BUILD_ID__}
+      </p>
     </div>
   );
 }
