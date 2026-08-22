@@ -56,7 +56,7 @@ The email includes the drives logged since the previous email (with route maps) 
 
 [`firestore.rules`](firestore.rules) is the source of truth for the database's access rules, with the reasoning for each block in comments. It is **not** deployed by any workflow — publish changes by pasting the file into the Firebase console (Firestore → Rules), which validates the syntax before you commit it. Edit the file and publish together so the two don't drift.
 
-One known gap is documented inline: `studentDirectory` still allows collection listing, so any signed-in user can enumerate every student's name and email. Rules can't constrain a query's filters, so closing it requires keying those documents by a hash of the email and reading them individually.
+Note that rules cannot inspect a query's filters — they authorize the operation, not the `where` clause. Allowing a collection to be queried therefore allows it to be listed in full. That's why `studentDirectory` is keyed by a hash of the student's email: the duplicate-email check reads one known document rather than querying, so `list` can be denied outright.
 
 ## State requirements data
 
@@ -83,17 +83,21 @@ When someone tries to add a student whose email already has a dashboard (owned b
 
 This relies on two collections that aren't covered by the existing rules:
 
-- `studentDirectory/{studentId}` — a small, separate record (just `studentId`, `ownerId`, `ownerName`, `firstName`, `lastName`, `email`) kept in sync with each student, so the "does this email already have a dashboard?" check doesn't require opening up read access to the full `students` collection (which also holds `sharedWithEmails`, log summaries via subcollections, etc.) to every signed-in user.
+- `studentDirectory/{sha256(email)}` — a small, separate record (just `studentId`, `ownerId`, `ownerName`, `firstName`, `lastName`, `email`) kept in sync with each student, so the "does this email already have a dashboard?" check doesn't require opening up read access to the full `students` collection (which also holds `sharedWithEmails`, log summaries via subcollections, etc.) to every signed-in user. Keying it by a hash of the email (see `src/utils/emailHash.js`) makes that check a direct document read, which is what allows the rules to deny listing — otherwise any signed-in user could enumerate every student's name and email. One entry per address: if a second student is registered under an address another account already used, the entry stays with the first, and the second student is created and usable but isn't what the directory points at.
 - `accessRequests/{requestId}` — one doc per pending request, holding both the owner's and requester's ids/emails so each side can be scoped independently.
 
 **One-time setup after adding this feature to an existing deployment:**
 
-1. Add the `studentDirectory` and `accessRequests` rules — see [`firestore.rules`](firestore.rules).
-2. Backfill directory entries for students created before this feature existed:
+1. Backfill directory entries for students created before this feature existed. Preview first — the dry run writes nothing:
    ```bash
    export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
-   node scripts/migrate-add-student-directory.js
+   node scripts/migrate-hash-student-directory.js --dry-run
+   node scripts/migrate-hash-student-directory.js
    ```
+   This only reads student records and rewrites `studentDirectory`; student data and drive logs are never modified. It supersedes `migrate-add-student-directory.js`, which wrote the old `studentId`-keyed entries and is kept only for reference.
+2. Then publish the `studentDirectory` and `accessRequests` rules — see [`firestore.rules`](firestore.rules).
+
+Run them in that order: the rules deny listing, which the old query-based lookup depended on, so publish them only once the hashed entries exist and the matching app version is deployed.
 
 ## Project structure
 
