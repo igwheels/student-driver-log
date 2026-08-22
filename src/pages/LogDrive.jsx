@@ -6,6 +6,13 @@ import DriveMap from '../components/DriveMap';
 import { shareContent } from '../utils/share';
 import { buildLogSnapshotUrl } from '../utils/snapshot';
 import { readPendingDrive, clearPendingDrive } from '../utils/pendingDrive';
+import {
+  localOffsetMinutes,
+  toZonedDateInput,
+  toZonedTimeInput,
+  fromZonedInputs,
+  zonedHours,
+} from '../utils/driveTime';
 
 const DRIVE_TYPES = [
   { label: 'Local', value: 'local' },
@@ -13,19 +20,8 @@ const DRIVE_TYPES = [
   { label: 'Highway', value: 'highway' },
 ];
 
-// Local calendar date, not UTC. toISOString() would roll over to tomorrow
-// for any evening drive west of Greenwich — at 8pm US Eastern it returns the
-// next day — so the form defaulted an evening drive to tomorrow's date, and
-// the "no future dates" rule below would then reject its own default.
-function toDateInputValue(d) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-function toTimeInputValue(d) {
-  return d.toTimeString().slice(0, 5);
-}
-function guessTimeOfDay(d) {
-  const h = d.getHours();
+function guessTimeOfDay(instant, offsetMinutes) {
+  const h = zonedHours(instant, offsetMinutes);
   return h >= 20 || h < 6 ? 'night' : 'day';
 }
 
@@ -65,10 +61,24 @@ export default function LogDrive() {
     ? new Date(prefill.endTime)
     : now;
 
-  const [dateStr, setDateStr] = useState(toDateInputValue(initialStart));
-  const [startStr, setStartStr] = useState(toTimeInputValue(initialStart));
-  const [endStr, setEndStr] = useState(toTimeInputValue(initialEnd));
-  const [timeOfDay, setTimeOfDay] = useState(existingLog?.timeOfDay ?? guessTimeOfDay(initialStart));
+  // The zone this drive is recorded in: the one it started in, falling back
+  // to the device's current zone for drives logged by hand and for those
+  // saved before the offset was stored. Fixed for the life of the form, so a
+  // drive that crossed a boundary reads the same as the driver experienced it
+  // — and stays that way if it is edited later from somewhere else.
+  const [offsetMinutes] = useState(
+    () =>
+      existingLog?.startOffsetMinutes ??
+      prefill?.startOffsetMinutes ??
+      localOffsetMinutes()
+  );
+
+  const [dateStr, setDateStr] = useState(toZonedDateInput(initialStart, offsetMinutes));
+  const [startStr, setStartStr] = useState(toZonedTimeInput(initialStart, offsetMinutes));
+  const [endStr, setEndStr] = useState(toZonedTimeInput(initialEnd, offsetMinutes));
+  const [timeOfDay, setTimeOfDay] = useState(
+    existingLog?.timeOfDay ?? guessTimeOfDay(initialStart, offsetMinutes)
+  );
   const [type, setType] = useState(existingLog?.type ?? 'local');
   const [distance, setDistance] = useState(
     existingLog?.distanceMiles != null
@@ -82,12 +92,12 @@ export default function LogDrive() {
   const [bragCopied, setBragCopied] = useState(false);
 
   const { startDate, endDate, durationMinutes } = useMemo(() => {
-    const sd = new Date(`${dateStr}T${startStr}:00`);
-    let ed = new Date(`${dateStr}T${endStr}:00`);
+    const sd = fromZonedInputs(dateStr, startStr, offsetMinutes);
+    let ed = fromZonedInputs(dateStr, endStr, offsetMinutes);
     if (ed < sd) ed = new Date(ed.getTime() + 24 * 60 * 60 * 1000); // crossed midnight
     const mins = Math.round((ed - sd) / 60000);
     return { startDate: sd, endDate: ed, durationMinutes: mins };
-  }, [dateStr, startStr, endStr]);
+  }, [dateStr, startStr, endStr, offsetMinutes]);
 
   const fmtDuration = `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`;
 
@@ -119,6 +129,9 @@ export default function LogDrive() {
       timeOfDay,
       type,
       distanceMiles: distance ? parseFloat(distance) : null,
+      // Recorded so reopening this drive shows the same clock times it was
+      // entered with, even from a device in another zone.
+      startOffsetMinutes: offsetMinutes,
     };
 
     if (isEditing) {
@@ -206,7 +219,7 @@ export default function LogDrive() {
           <input
             type="date"
             value={dateStr}
-            max={toDateInputValue(new Date())}
+            max={toZonedDateInput(new Date(), offsetMinutes)}
             onChange={(e) => setDateStr(e.target.value)}
           />
         </div>
@@ -214,7 +227,7 @@ export default function LogDrive() {
           <label>Start Time</label>
           <input type="time" value={startStr} onChange={(e) => {
             setStartStr(e.target.value);
-            setTimeOfDay(guessTimeOfDay(new Date(`${dateStr}T${e.target.value}:00`)));
+            setTimeOfDay(guessTimeOfDay(fromZonedInputs(dateStr, e.target.value, offsetMinutes), offsetMinutes));
           }} />
         </div>
         <div className="field">
