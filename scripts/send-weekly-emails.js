@@ -51,7 +51,17 @@ const APP_URL = process.env.APP_URL || 'https://igwheels.github.io/student-drive
 const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const fmt = (mins) => `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;
-const fmtDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// Formats the drive's own calendar date, which the app already recorded in
+// the zone the drive started in. Formatting startTime here instead would
+// render it in the Actions runner's zone (UTC), so an evening drive would be
+// listed a day later in the email than it appears in the app.
+const fmtDate = (log) => {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(log.date || '');
+  const asUtc = parts
+    ? new Date(Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])))
+    : new Date(log.startTime); // pre-dating the stored date; best available
+  return asUtc.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+};
 const DRIVE_TYPE_LABELS = { local: 'Local', rural: 'Rural', highway: 'Highway' };
 
 function unsubscribeUrl(email) {
@@ -147,7 +157,7 @@ async function main() {
         const meta = `${DRIVE_TYPE_LABELS[d.type] ?? d.type} · ${d.timeOfDay === 'night' ? 'Night' : 'Day'}${
           d.distanceMiles != null ? ` · ${d.distanceMiles} mi` : ''
         }`;
-        return { date: fmtDate(d.startTime), meta, duration: fmt(d.durationMinutes), mapCid: driveMapPngs[i] ? `drivemap${i}` : null };
+        return { date: fmtDate(d), meta, duration: fmt(d.durationMinutes), mapCid: driveMapPngs[i] ? `drivemap${i}` : null };
       });
 
     const driveTextBlock = driveRows.length
