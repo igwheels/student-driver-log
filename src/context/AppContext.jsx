@@ -109,14 +109,12 @@ export function AppProvider({ children }) {
         // Students shared with this user's email, found via a collection-group query
         // (avoids scanning every user's data — only matches students that list this email)
         let sharedStudents = [];
-        console.log('Looking for students shared with:', userEmail);
         try {
           const sharedQuery = query(
             collectionGroup(db, 'students'),
             where('sharedWithEmails', 'array-contains', userEmail)
           );
           const sharedSnap = await getDocs(sharedQuery);
-          console.log('Shared-student query returned', sharedSnap.docs.length, 'document(s)');
           sharedStudents = sharedSnap.docs
             .filter((d) => d.data().ownerId !== user.id) // safety: don't double-list own students
             .map((d) => ({ ...d.data(), id: d.id, isOwner: false }));
@@ -356,7 +354,54 @@ export function AppProvider({ children }) {
     }
   };
 
+  // Records outside the student document that reference it, and would
+  // otherwise outlive it: the directory entry (which any signed-in user can
+  // read given the email), plus any access requests and queued invitations
+  // naming this student. Each is attempted independently and none of them
+  // block the others — the student itself is already gone by this point, so a
+  // failure here means a leftover to clean up, not a half-deleted student.
+  //
+  // Everything below is scoped to this one studentId and to records this user
+  // owns; nothing here can reach another student or another account.
+  const deleteRecordsReferencingStudent = async (studentId, student) => {
+    if (student?.email) {
+      try {
+        // Only if it still points at this student — the entry is keyed by
+        // email, and a different student could legitimately hold it.
+        const ref = doc(db, 'studentDirectory', await emailDocId(student.email));
+        const snap = await getDoc(ref);
+        if (snap.exists() && snap.data().studentId === studentId) {
+          await deleteDoc(ref);
+        }
+      } catch (e) {
+        console.warn('Failed to remove studentDirectory entry:', e);
+      }
+    }
+
+    for (const [label, collectionName] of [
+      ['access requests', 'accessRequests'],
+      ['invitations', 'invitations'],
+    ]) {
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, collectionName),
+            where('ownerId', '==', user.id),
+            where('studentId', '==', studentId)
+          )
+        );
+        await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+      } catch (e) {
+        console.warn(`Failed to remove ${label} for the deleted student:`, e);
+      }
+    }
+  };
+
   const deleteStudent = async (studentId) => {
+    // Captured before the optimistic removal below, since the cleanup needs
+    // the student's email to find its directory entry.
+    const student = students.find((s) => s.id === studentId);
+
     setStudents((prev) => prev.filter((s) => s.id !== studentId));
     setLogs((prev) => {
       const updated = { ...prev };
@@ -374,6 +419,8 @@ export function AppProvider({ children }) {
       } catch (e) {
         console.warn('Failed to delete student from Firestore', e);
       }
+
+      await deleteRecordsReferencingStudent(studentId, student);
     }
   };
 
