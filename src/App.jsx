@@ -9,6 +9,7 @@ import DriveTimer from './pages/DriveTimer';
 import LogDrive from './pages/LogDrive';
 import Account from './pages/Account';
 import ManageStudents from './pages/ManageStudents';
+import Flashcards from './pages/Flashcards';
 import Snapshot from './pages/Snapshot';
 import Unsubscribe from './pages/Unsubscribe';
 import TermsOfUse from './pages/TermsOfUse';
@@ -66,7 +67,8 @@ export default function App() {
   const showTopbar = !isLogin && !isTimer && !isSnapshot && !isUnsubscribe && !isLegalPage;
   const isDashboard = location.pathname.startsWith('/dashboard');
   const title = TITLES[location.pathname] ||
-    (isDashboard ? 'Dashboard'
+    (location.pathname.startsWith('/flashcards') ? 'Permit Practice'
+    : isDashboard ? 'Dashboard'
     : location.pathname.startsWith('/log-drive') ? 'Log a Drive' : 'Student Driver Log');
 
   // On a student's dashboard, share a read-only snapshot of their progress
@@ -160,6 +162,7 @@ export default function App() {
         <Route path="/drive-timer/:studentId" element={<RequireAuth><RequireWritableStudent><DriveTimer /></RequireWritableStudent></RequireAuth>} />
         <Route path="/log-drive/:studentId" element={<RequireAuth><RequireWritableStudent><LogDrive /></RequireWritableStudent></RequireAuth>} />
         <Route path="/log-drive/:studentId/:logId" element={<RequireAuth><RequireWritableStudent><LogDrive /></RequireWritableStudent></RequireAuth>} />
+        <Route path="/flashcards/:studentId" element={<RequireAuth><Flashcards /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
         <Route path="/manage-students" element={<RequireAuth><ManageStudents /></RequireAuth>} />
         <Route path="/terms" element={<TermsOfUse />} />
