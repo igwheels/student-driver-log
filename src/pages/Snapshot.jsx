@@ -1,7 +1,6 @@
 import React from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Gauge from '../components/Gauge';
-import DriveMap from '../components/DriveMap';
 import { decodeSnapshotParam } from '../utils/snapshot';
 
 const DRIVE_TYPE_LABELS = { local: 'Local', rural: 'Rural', highway: 'Highway' };
@@ -23,17 +22,15 @@ function DashboardSnapshot({ d }) {
   );
 }
 
+// Renders only non-location fields. Links shared before snapshots stopped
+// carrying coordinates still have s/e/r sitting in the URL — those can't be
+// recalled, but this page will no longer draw a map from them, so an old
+// link stops displaying where the drive went.
 function LogSnapshot({ d }) {
   return (
     <>
       <h2 style={{ fontSize: 22, marginBottom: 4 }}>{d.name}'s Drive</h2>
       <p style={{ color: 'var(--muted)', marginBottom: 22 }}>{d.date}</p>
-
-      {d.s && d.e && (
-        <div style={{ marginBottom: 20, width: '100%' }}>
-          <DriveMap start={d.s} end={d.e} route={d.r} />
-        </div>
-      )}
 
       <div className="ledger-row" style={{ cursor: 'default', width: '100%' }}>
         <div>
