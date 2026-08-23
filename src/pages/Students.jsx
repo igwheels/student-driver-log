@@ -52,15 +52,18 @@ function StudentCard({ student, totals, shared }) {
 }
 
 export default function Students() {
-  const { students, isOwner, getTotals } = useApp();
+  const { students, isOwner, isStudentSelf, isStudentOnlyAccount, getTotals } = useApp();
   const navigate = useNavigate();
 
   const owned = students.filter((s) => isOwner(s.id));
-  const shared = students.filter((s) => !isOwner(s.id));
+  const mine = students.filter((s) => isStudentSelf(s.id));
+  const shared = students.filter((s) => !isOwner(s.id) && !isStudentSelf(s.id));
 
   return (
     <div className="page">
-      <h2 style={{ fontSize: 22, marginBottom: 18 }}>Your student drivers</h2>
+      <h2 style={{ fontSize: 22, marginBottom: 18 }}>
+        {isStudentOnlyAccount ? 'Your driving record' : 'Your student drivers'}
+      </h2>
 
       {students.length === 0 ? (
         <div className="empty-state">No student drivers yet. Add one to start logging hours.</div>
@@ -69,6 +72,17 @@ export default function Students() {
           {owned.map((s) => (
             <StudentCard key={s.id} student={s} totals={getTotals(s.id)} />
           ))}
+
+          {mine.length > 0 && (
+            <>
+              {!isStudentOnlyAccount && (
+                <h3 style={{ fontSize: 14, color: 'var(--muted)', marginTop: 24, marginBottom: 12 }}>Your own record</h3>
+              )}
+              {mine.map((s) => (
+                <StudentCard key={s.id} student={s} totals={getTotals(s.id)} shared />
+              ))}
+            </>
+          )}
 
           {shared.length > 0 && (
             <>
@@ -81,9 +95,28 @@ export default function Students() {
         </div>
       )}
 
-      <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => navigate('/add-student')}>
-        + Add a student driver
-      </button>
+      {/* Owner and student are per-dashboard relationships, not account
+          modes, so they coexist: adding a student driver here makes this
+          account an owner too, and the rest of the app opens up on its own
+          (see isStudentOnlyAccount in AppContext). This entry point has to
+          stay reachable for a student-only account or there'd be no way out
+          of the pared-down view — just phrased so it's clear it creates a
+          dashboard they'd supervise, rather than another copy of their own. */}
+      {isStudentOnlyAccount ? (
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--line)' }}>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+            Supervising someone else's driving practice? Add them as a student driver and you'll be
+            able to log drives for them.
+          </p>
+          <button className="btn btn-outline" onClick={() => navigate('/add-student')}>
+            + Add a student driver
+          </button>
+        </div>
+      ) : (
+        <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => navigate('/add-student')}>
+          + Add a student driver
+        </button>
+      )}
     </div>
   );
 }

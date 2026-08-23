@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { useApp } from './context/AppContext';
 import Login from './pages/Login';
 import Students from './pages/Students';
@@ -34,6 +34,18 @@ const TITLES = {
   '/manage-students': 'Manage Students',
 };
 
+// Routes that write drive data. A student's own dashboard is read-only, so
+// send them back rather than let them fill in a form whose save Firestore
+// will reject — the write would fail in the background and look like the app
+// silently losing their drive.
+function RequireWritableStudent({ children }) {
+  const { studentId } = useParams();
+  const { isStudentSelf, hydrated, authChecked } = useApp();
+  if (!hydrated || !authChecked) return null;
+  if (isStudentSelf(studentId)) return <Navigate to={`/dashboard/${studentId}`} replace />;
+  return children;
+}
+
 function RequireAuth({ children }) {
   const { user, hydrated, authChecked } = useApp();
   if (!hydrated || !authChecked) return null;
@@ -44,7 +56,7 @@ function RequireAuth({ children }) {
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, students, getTotals } = useApp();
+  const { logout, students, getTotals, isStudentOnlyAccount } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
@@ -125,7 +137,11 @@ export default function App() {
                 />
                 <div className="menu-dropdown">
                   <button onClick={handleAccount}>Account</button>
-                  <button onClick={handleManageStudents}>Manage students</button>
+                  {/* Nothing to manage on a student-only account — they own
+                      no dashboards, so this would open an empty page. */}
+                  {!isStudentOnlyAccount && (
+                    <button onClick={handleManageStudents}>Manage students</button>
+                  )}
                   <button onClick={handleLogout}>Log out</button>
                 </div>
               </>
@@ -141,9 +157,9 @@ export default function App() {
         <Route path="/students" element={<RequireAuth><Students /></RequireAuth>} />
         <Route path="/add-student" element={<RequireAuth><AddStudent /></RequireAuth>} />
         <Route path="/dashboard/:studentId" element={<RequireAuth><Dashboard /></RequireAuth>} />
-        <Route path="/drive-timer/:studentId" element={<RequireAuth><DriveTimer /></RequireAuth>} />
-        <Route path="/log-drive/:studentId" element={<RequireAuth><LogDrive /></RequireAuth>} />
-        <Route path="/log-drive/:studentId/:logId" element={<RequireAuth><LogDrive /></RequireAuth>} />
+        <Route path="/drive-timer/:studentId" element={<RequireAuth><RequireWritableStudent><DriveTimer /></RequireWritableStudent></RequireAuth>} />
+        <Route path="/log-drive/:studentId" element={<RequireAuth><RequireWritableStudent><LogDrive /></RequireWritableStudent></RequireAuth>} />
+        <Route path="/log-drive/:studentId/:logId" element={<RequireAuth><RequireWritableStudent><LogDrive /></RequireWritableStudent></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
         <Route path="/manage-students" element={<RequireAuth><ManageStudents /></RequireAuth>} />
         <Route path="/terms" element={<TermsOfUse />} />

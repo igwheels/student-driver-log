@@ -11,7 +11,7 @@ export default function Dashboard() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { students, getLogs, getTotals, user, isOwner, unshareStudent, getPendingRequests, approveRequest, denyRequest } = useApp();
+  const { students, getLogs, getTotals, user, isOwner, isStudentSelf, unshareStudent, getPendingRequests, approveRequest, denyRequest } = useApp();
   const student = students.find((s) => s.id === studentId);
   const [celebration, setCelebration] = useState(location.state?.celebrate ?? null);
   const [showAllDrives, setShowAllDrives] = useState(false);
@@ -75,6 +75,11 @@ export default function Dashboard() {
 
   if (!student) return <div className="page">Student not found.</div>;
 
+  // The student viewing their own dashboard. Read-only: no logging drives, no
+  // editing existing ones, no sharing. Firestore rules enforce this too — the
+  // gating here is so the UI doesn't offer actions that would just fail.
+  const viewOnly = isStudentSelf(studentId);
+
   const req = STATE_REQUIREMENTS[student.state];
   const { totalMinutes, nightMinutes } = getTotals(studentId);
   const logs = getLogs(studentId);
@@ -86,7 +91,20 @@ export default function Dashboard() {
     <div className="page">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
         <h2 style={{ fontSize: 24, margin: 0 }}>{student.firstName}'s Dashboard</h2>
-        {!isOwner(studentId) && (
+        {viewOnly ? (
+          <span style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--navy)',
+            backgroundColor: 'var(--line)',
+            padding: '4px 8px',
+            borderRadius: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            View only
+          </span>
+        ) : !isOwner(studentId) && (
           <span style={{
             fontSize: 11,
             fontWeight: 600,
@@ -118,12 +136,16 @@ export default function Dashboard() {
       )}
 
       <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <button className="btn btn-primary" onClick={() => navigate(`/drive-timer/${studentId}`)}>
-          Start a Drive
-        </button>
-        <button className="btn btn-dark" onClick={() => navigate(`/log-drive/${studentId}`)}>
-          Log a Drive
-        </button>
+        {!viewOnly && (
+          <>
+            <button className="btn btn-primary" onClick={() => navigate(`/drive-timer/${studentId}`)}>
+              Start a Drive
+            </button>
+            <button className="btn btn-dark" onClick={() => navigate(`/log-drive/${studentId}`)}>
+              Log a Drive
+            </button>
+          </>
+        )}
         <button
           className="btn btn-outline"
           disabled={logs.length === 0}
@@ -241,7 +263,9 @@ export default function Dashboard() {
 
       <h3 style={{ fontSize: 17, marginTop: 30, marginBottom: 10 }}>Recent drives</h3>
       {logs.length === 0 ? (
-        <p style={{ color: 'var(--muted)' }}>No drives logged yet. Start one above!</p>
+        <p style={{ color: 'var(--muted)' }}>
+          {viewOnly ? 'No drives logged yet.' : 'No drives logged yet. Start one above!'}
+        </p>
       ) : (
         <>
           <div className="ledger">
@@ -249,8 +273,8 @@ export default function Dashboard() {
               <div
                 key={l.id}
                 className="ledger-row"
-                onClick={() => navigate(`/log-drive/${studentId}/${l.id}`)}
-                style={{ cursor: 'pointer' }}
+                onClick={viewOnly ? undefined : () => navigate(`/log-drive/${studentId}/${l.id}`)}
+                style={{ cursor: viewOnly ? 'default' : 'pointer' }}
               >
                 <div className="ledger-row-main">
                   <div>
