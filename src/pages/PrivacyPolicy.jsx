@@ -50,8 +50,8 @@ export default function PrivacyPolicy() {
       <p>
         <strong>Sharing information.</strong> If you share a dashboard, we store the email address
         you shared it with so we can grant that person access and send them an invitation. If
-        someone requests access to a student you own, we store their request until you approve or
-        decline it.
+        someone requests access to a student's dashboard you own, we store their request until you
+        approve or decline it.
       </p>
       <p>
         <strong>Student directory.</strong> To detect when a dashboard already exists for a given
