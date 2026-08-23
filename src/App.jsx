@@ -17,6 +17,16 @@ import ShareButton from './components/ShareButton';
 import { STATE_REQUIREMENTS } from './data/stateRequirements';
 import { buildDashboardSnapshotUrl } from './utils/snapshot';
 
+// Copyright year: just the launch year during that year, a range afterwards
+// ("2026", then "2026–2027", …). Computed once at module load rather than per
+// render — the only cost is that a session left open across New Year's shows
+// the old year until reload. The `>` guard means a device clock set before
+// 2026 falls back to the launch year instead of printing a backwards range.
+const COPYRIGHT_START_YEAR = 2026;
+const currentYear = new Date().getFullYear();
+const COPYRIGHT_YEARS =
+  currentYear > COPYRIGHT_START_YEAR ? `${COPYRIGHT_START_YEAR}–${currentYear}` : `${COPYRIGHT_START_YEAR}`;
+
 const TITLES = {
   '/students': 'Student Drivers',
   '/add-student': 'Add Student Driver',
@@ -141,7 +151,7 @@ export default function App() {
       </Routes>
 
       <div className="app-footer">
-        <span>© 2026 DevWorks LLC. All rights reserved.</span>
+        <span>© {COPYRIGHT_YEARS} DevWorks LLC. All rights reserved.</span>
         <div className="footer-links">
           <button onClick={() => navigate('/terms')}>Terms of Use</button>
           <button onClick={() => navigate('/privacy')}>Privacy Policy</button>
