@@ -38,8 +38,31 @@ export default function PrivacyPolicy() {
         optionally the distance driven.
       </p>
       <p>
+        <strong>Location data.</strong> If you use the drive timer and grant location permission,
+        the Service records GPS coordinates during the drive: the starting location, the ending
+        location, and the route travelled in between. This is used to calculate mileage
+        automatically and to draw a map of the drive. Location is collected only while a drive is
+        actively being timed, and only if you grant permission — you can decline and enter mileage
+        manually instead, and you can revoke the permission at any time in your browser or device
+        settings. Because these are precise coordinates of trips taken by a student driver, they may
+        reveal frequently visited places such as a home, school, or workplace.
+      </p>
+      <p>
         <strong>Sharing information.</strong> If you share a dashboard, we store the email address
-        you shared it with so we can grant that person access and send them an invitation.
+        you shared it with so we can grant that person access and send them an invitation. If
+        someone requests access to a student you own, we store their request until you approve or
+        decline it.
+      </p>
+      <p>
+        <strong>Student directory.</strong> To detect when a dashboard already exists for a given
+        student, we store a directory entry keyed by an irreversible hash of the student's email
+        address, containing the student's first name, the dashboard's identifier, and the owner's
+        name. This lets the Service answer "does a dashboard for this address exist?" without making
+        student records searchable or allowing the list of students to be enumerated.
+      </p>
+      <p>
+        <strong>Email preferences.</strong> If you opt out of weekly progress emails, we store that
+        preference against your email address so we stop sending them.
       </p>
 
       <h3>2. Information collected automatically</h3>
@@ -55,10 +78,13 @@ export default function PrivacyPolicy() {
         <li>To provide the Service — storing your logs and syncing them across your devices</li>
         <li>To authenticate you and keep your account secure</li>
         <li>
-          To send weekly progress emails summarizing recorded hours to the student's email address,
-          the account owner, and anyone the dashboard has been shared with
+          To send weekly progress emails summarizing recorded hours — including a breakdown of
+          recent drives and map images of GPS-tracked routes — to the student's email address, the
+          account owner, and anyone the dashboard has been shared with, unless they have opted out
         </li>
         <li>To send an invitation email when a dashboard is shared with a new address</li>
+        <li>To verify your email address when you create an account</li>
+        <li>To calculate drive mileage and draw route maps from location data</li>
         <li>To generate the driving log and affidavit PDF you export</li>
         <li>To understand overall usage and improve the Service</li>
       </ul>
@@ -123,7 +149,31 @@ export default function PrivacyPolicy() {
         already recorded.
       </p>
 
-      <h3>8. Data retention and deletion</h3>
+      <h3>8. Snapshot links you share</h3>
+      <p>
+        The Service can generate a "snapshot" link — a read-only view of a student's progress, or of
+        a single drive, that you can send to family or friends. Please understand how these work
+        before sharing one:
+      </p>
+      <ul>
+        <li>
+          The information is encoded <em>directly into the link itself</em>, not stored on our
+          servers. Anyone who has the link can open it. There is no sign-in, and we cannot revoke a
+          link once you have sent it.
+        </li>
+        <li>
+          A progress snapshot contains the student's first name, their state's requirement, and
+          their recorded hours.
+        </li>
+        <li>
+          A snapshot of an individual GPS-tracked drive also contains{' '}
+          <strong>the start and end coordinates and the route travelled</strong>. Sharing one
+          publicly may reveal where the student drove — potentially including a home address.
+          Consider this carefully before posting such a link anywhere public.
+        </li>
+      </ul>
+
+      <h3>9. Data retention and deletion</h3>
       <p>
         We retain your information for as long as your account is active. You may delete an
         individual student driver — along with all of that student's recorded drives — from the
@@ -132,29 +182,34 @@ export default function PrivacyPolicy() {
         before being overwritten.
       </p>
 
-      <h3>9. Security</h3>
+      <h3>10. Security</h3>
       <p>
         We use industry-standard measures including encrypted connections and database access rules
         that restrict each account to its own data. No online service can be guaranteed completely
         secure, and we cannot promise that unauthorized access will never occur.
       </p>
 
-      <h3>10. Your choices</h3>
+      <h3>11. Your choices</h3>
       <ul>
         <li>View and edit student information from the Manage Students page</li>
         <li>Delete individual drives, individual students, or your entire account at any time</li>
         <li>Revoke a shared user's access from the student's dashboard</li>
         <li>Change the email address that receives weekly progress updates</li>
+        <li>
+          Decline or revoke location permission in your browser or device settings and enter mileage
+          manually — the Account page shows the current permission status
+        </li>
+        <li>Opt out of weekly progress emails from the Account page or any email's unsubscribe link</li>
         <li>Reset your password from the Account page</li>
       </ul>
 
-      <h3>11. Changes to this Policy</h3>
+      <h3>12. Changes to this Policy</h3>
       <p>
         We may update this Privacy Policy from time to time. Material changes will be reflected in
         the "Last updated" date above.
       </p>
 
-      <h3>12. Contact</h3>
+      <h3>13. Contact</h3>
       <p>
         Questions about this Privacy Policy, or requests regarding a student driver's information,
         may be directed to DevWorks LLC at the contact address published with the Service.
