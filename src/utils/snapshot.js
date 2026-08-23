@@ -4,18 +4,14 @@
 // fetched from Firestore. That keeps it viewable by anyone with the link,
 // without requiring a signed-in session or making any account data
 // queryable by non-owners.
-
-const MAX_ROUTE_POINTS = 40;
-
-function downsampleRoute(route) {
-  if (!route || route.length <= MAX_ROUTE_POINTS) return route ?? null;
-  const step = (route.length - 1) / (MAX_ROUTE_POINTS - 1);
-  const out = [];
-  for (let i = 0; i < MAX_ROUTE_POINTS; i++) {
-    out.push(route[Math.round(i * step)]);
-  }
-  return out;
-}
+//
+// Deliberately NO location data: because the payload lives in the URL, a
+// snapshot cannot be revoked, expired, or access-controlled once sent, and
+// anyone holding the link can decode it. Drives are usually taken by minors
+// and usually start at home, so start/end coordinates and the route between
+// them are exactly the fields that shouldn't travel in a link the sharer
+// can't take back. Maps stay in the app, where they're behind auth and only
+// visible to the dashboard's owner and people it's explicitly shared with.
 
 function encode(type, data) {
   const json = JSON.stringify({ t: type, d: data });
@@ -65,9 +61,6 @@ export function buildLogSnapshotUrl({
   type,
   timeOfDay,
   distanceMiles,
-  startLocation,
-  endLocation,
-  route,
 }) {
   return snapshotUrl('log', {
     name: studentFirstName,
@@ -76,9 +69,6 @@ export function buildLogSnapshotUrl({
     type,
     tod: timeOfDay,
     dist: distanceMiles,
-    s: startLocation ?? null,
-    e: endLocation ?? null,
-    r: downsampleRoute(route),
   });
 }
 

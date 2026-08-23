@@ -166,10 +166,14 @@ export default function PrivacyPolicy() {
           their recorded hours.
         </li>
         <li>
-          A snapshot of an individual GPS-tracked drive also contains{' '}
-          <strong>the start and end coordinates and the route travelled</strong>. Sharing one
-          publicly may reveal where the student drove — potentially including a home address.
-          Consider this carefully before posting such a link anywhere public.
+          A snapshot of an individual drive contains the student's first name, the date, duration,
+          road type, whether it was day or night, and the distance.
+        </li>
+        <li>
+          <strong>Snapshot links contain no location data.</strong> Coordinates and routes are
+          deliberately excluded, because a link cannot be revoked once sent and could otherwise
+          reveal where a student drove — potentially including a home address. Maps are visible only
+          inside the app, to you and to people you have shared the dashboard with.
         </li>
       </ul>
 

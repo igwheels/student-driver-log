@@ -157,6 +157,8 @@ export default function LogDrive() {
 
   const handleBrag = () => {
     if (!student || !existingLog) return;
+    // No location fields — see src/utils/snapshot.js for why a shareable
+    // link deliberately carries no coordinates.
     const url = buildLogSnapshotUrl({
       studentFirstName: student.firstName,
       date: existingLog.date,
@@ -164,9 +166,6 @@ export default function LogDrive() {
       type: existingLog.type,
       timeOfDay: existingLog.timeOfDay,
       distanceMiles: existingLog.distanceMiles,
-      startLocation: existingLog.startLocation,
-      endLocation: existingLog.endLocation,
-      route: existingLog.route,
     });
     shareContent(
       {

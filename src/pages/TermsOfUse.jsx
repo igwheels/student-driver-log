@@ -81,9 +81,9 @@ export default function TermsOfUse() {
       <p>
         The Service can generate a shareable "snapshot" link showing a student's progress or an
         individual drive. The information is encoded into the link itself and is viewable by anyone
-        who has it — no sign-in is required, and a link cannot be revoked once shared. A snapshot of
-        a GPS-tracked drive includes the route travelled, which may reveal where the student drove.
-        You are responsible for deciding who to send these links to.
+        who has it — no sign-in is required, and a link cannot be revoked once shared. Snapshots
+        contain no location data, but they do identify the student by first name along with their
+        driving activity, so you remain responsible for deciding who to send them to.
       </p>
 
       <h3>7. Location data</h3>
