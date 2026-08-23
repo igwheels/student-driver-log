@@ -458,7 +458,11 @@ a { color: inherit; }
 
 /* ---------- Login ---------- */
 .login-screen {
-  min-height: 100%;
+  /* flex: 1 (not min-height: 100%) so this grows to fill the space the
+     footer doesn't use. As a non-growing flex item it stopped at its
+     natural height, and the gap above the footer fell through to the
+     body's off-white background. */
+  flex: 1;
   background: var(--navy);
   display: flex;
   flex-direction: column;
