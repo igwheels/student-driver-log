@@ -19,6 +19,10 @@ import {
 
 const DELETE_PHRASE = 'Delete this account and all its dashboards forever.';
 
+// Student emails are stored as typed (AddStudent/ManageStudents only trim),
+// while shared-viewer addresses are already lowercased — so compare normalized.
+const normalizeEmail = (email) => email.trim().toLowerCase();
+
 // What the browser's permission registry says. This is only ever a hint: it
 // reports the *site's* permission and is blind to the device refusing at the
 // OS level, so 'granted' does not mean location actually works. The probe
@@ -136,12 +140,33 @@ export default function Account() {
     }
 
     // The preference document is keyed by the email address itself, so
-    // leaving it would keep that address on file after the account is gone.
-    // Not fatal: the account deletion below matters more than this record.
-    try {
-      await deleteWeeklyEmailPreference(user.email);
-    } catch (e) {
-      console.warn('Failed to remove email preference:', e);
+    // normally it's dropped here rather than left on file after the account
+    // is gone.
+    //
+    // Not when the address is still a recipient, though. Weekly emails go to
+    // each student's own address and to anyone the dashboard is shared with
+    // (see scripts/send-weekly-emails.js), and those live on dashboards this
+    // account doesn't own — so they outlive it. Since "no preference
+    // document" means subscribed, deleting the record unconditionally would
+    // silently resubscribe someone who had deliberately opted out: a student
+    // who opts out and then deletes their login would start receiving the
+    // emails again. Keeping the record costs only that the address stays in
+    // emailPreferences, and it's already on the owner's student document
+    // regardless.
+    const myEmail = normalizeEmail(user.email || '');
+    const survivingStudents = students.filter((s) => s.ownerId !== user.id);
+    const stillAnEmailRecipient = survivingStudents.some(
+      (s) =>
+        normalizeEmail(s.email || '') === myEmail ||
+        (s.sharedWithEmails ?? []).some((e) => normalizeEmail(e) === myEmail)
+    );
+
+    if (!stillAnEmailRecipient) {
+      try {
+        await deleteWeeklyEmailPreference(user.email);
+      } catch (e) {
+        console.warn('Failed to remove email preference:', e);
+      }
     }
 
     await deleteUser(auth.currentUser);
