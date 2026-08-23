@@ -11,6 +11,8 @@ import Account from './pages/Account';
 import ManageStudents from './pages/ManageStudents';
 import Snapshot from './pages/Snapshot';
 import Unsubscribe from './pages/Unsubscribe';
+import TermsOfUse from './pages/TermsOfUse';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import ShareButton from './components/ShareButton';
 import { STATE_REQUIREMENTS } from './data/stateRequirements';
 import { buildDashboardSnapshotUrl } from './utils/snapshot';
@@ -38,7 +40,8 @@ export default function App() {
   const isTimer = location.pathname.startsWith('/drive-timer');
   const isSnapshot = location.pathname.startsWith('/snapshot');
   const isUnsubscribe = location.pathname.startsWith('/unsubscribe');
-  const showTopbar = !isLogin && !isTimer && !isSnapshot && !isUnsubscribe;
+  const isLegalPage = location.pathname === '/terms' || location.pathname === '/privacy';
+  const showTopbar = !isLogin && !isTimer && !isSnapshot && !isUnsubscribe && !isLegalPage;
   const isDashboard = location.pathname.startsWith('/dashboard');
   const title = TITLES[location.pathname] ||
     (isDashboard ? 'Dashboard'
@@ -133,7 +136,17 @@ export default function App() {
         <Route path="/log-drive/:studentId/:logId" element={<RequireAuth><LogDrive /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
         <Route path="/manage-students" element={<RequireAuth><ManageStudents /></RequireAuth>} />
+        <Route path="/terms" element={<TermsOfUse />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
       </Routes>
+
+      <div className="app-footer">
+        <span>© 2026 DevWorks LLC. All rights reserved.</span>
+        <div className="footer-links">
+          <button onClick={() => navigate('/terms')}>Terms of Use</button>
+          <button onClick={() => navigate('/privacy')}>Privacy Policy</button>
+        </div>
+      </div>
     </div>
   );
 }
