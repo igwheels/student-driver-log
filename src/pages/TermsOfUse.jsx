@@ -77,7 +77,25 @@ export default function TermsOfUse() {
         </li>
       </ul>
 
-      <h3>6. Acceptable use</h3>
+      <h3>6. Snapshot links</h3>
+      <p>
+        The Service can generate a shareable "snapshot" link showing a student's progress or an
+        individual drive. The information is encoded into the link itself and is viewable by anyone
+        who has it — no sign-in is required, and a link cannot be revoked once shared. A snapshot of
+        a GPS-tracked drive includes the route travelled, which may reveal where the student drove.
+        You are responsible for deciding who to send these links to.
+      </p>
+
+      <h3>7. Location data</h3>
+      <p>
+        If you grant location permission, the Service records GPS coordinates while a drive is being
+        timed in order to calculate mileage and draw a route map. Granting permission is optional;
+        you may decline and enter mileage manually. You are responsible for ensuring you have the
+        student driver's and their parent or guardian's knowledge and agreement before recording
+        their location.
+      </p>
+
+      <h3>8. Acceptable use</h3>
       <p>You agree not to:</p>
       <ul>
         <li>Enter information about a person without authority to do so</li>
@@ -87,14 +105,14 @@ export default function TermsOfUse() {
         <li>Use the Service for any unlawful purpose</li>
       </ul>
 
-      <h3>7. Your content</h3>
+      <h3>9. Your content</h3>
       <p>
         You retain ownership of the information you enter. You grant us a limited license to store,
         process, and display that information solely to operate and provide the Service to you and
         anyone you have shared a dashboard with.
       </p>
 
-      <h3>8. Service availability</h3>
+      <h3>10. Service availability</h3>
       <p>
         The Service is provided free of charge and on an "as is" and "as available" basis. We do not
         guarantee that it will be uninterrupted, error-free, or that data will never be lost. We may
@@ -102,7 +120,7 @@ export default function TermsOfUse() {
         and retain your own copy of any driving log you may need for official purposes.
       </p>
 
-      <h3>9. Disclaimer of warranties</h3>
+      <h3>11. Disclaimer of warranties</h3>
       <p>
         To the fullest extent permitted by law, we disclaim all warranties, express or implied,
         including any implied warranties of merchantability, fitness for a particular purpose, and
@@ -110,7 +128,7 @@ export default function TermsOfUse() {
         information it provides is accurate or complete.
       </p>
 
-      <h3>10. Limitation of liability</h3>
+      <h3>12. Limitation of liability</h3>
       <p>
         To the fullest extent permitted by law, DevWorks LLC will not be liable for any indirect,
         incidental, consequential, or special damages, or for any loss of data, arising out of or
@@ -119,20 +137,20 @@ export default function TermsOfUse() {
         information shown in the Service.
       </p>
 
-      <h3>11. Termination</h3>
+      <h3>13. Termination</h3>
       <p>
         You may delete your account at any time from the Account page. We may suspend or terminate
         access if we believe these Terms have been violated. Deleting your account permanently
         removes the dashboards you own and their recorded drives.
       </p>
 
-      <h3>12. Changes to these Terms</h3>
+      <h3>14. Changes to these Terms</h3>
       <p>
         We may update these Terms from time to time. Continued use of the Service after changes take
         effect constitutes acceptance of the revised Terms.
       </p>
 
-      <h3>13. Contact</h3>
+      <h3>15. Contact</h3>
       <p>
         Questions about these Terms may be directed to DevWorks LLC at the contact address published
         with the Service.
