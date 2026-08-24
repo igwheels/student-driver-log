@@ -86,7 +86,7 @@ ones that differ between states. A card that is merely plausible is worse than
 no card when someone is studying for a real licensing test.
 
 ```bash
-pip install pypdf                                    # one-time
+pip install pypdf cryptography                        # one-time
 python3 scripts/extract-manual.py <pdf-url> ne.txt   # download + extract
 ```
 

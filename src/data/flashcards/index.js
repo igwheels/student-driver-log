@@ -2,6 +2,7 @@
 // resolves without one) so scripts/validate-decks.mjs can load this file with
 // plain node and no build step or dependencies.
 import { NE_DECK } from './ne.js';
+import { CA_DECK } from './ca.js';
 
 /**
  * Per-state flashcard decks.
@@ -21,6 +22,12 @@ import { NE_DECK } from './ne.js';
  * manual's URL and the edition the deck was written against.
  */
 export const DECKS = {
+  CA: {
+    cards: CA_DECK,
+    manualName: 'California Driver’s Handbook',
+    manualUrl: 'https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/',
+    edition: '2025 edition',
+  },
   NE: {
     cards: NE_DECK,
     manualName: 'Nebraska Driver’s Manual (Class O)',
