@@ -5,7 +5,8 @@ import { STATE_REQUIREMENTS } from '../data/stateRequirements';
 import Gauge from '../components/Gauge';
 import ShareModal from '../components/ShareModal';
 import DriveMap from '../components/DriveMap';
-import { exportLogPdf } from '../utils/pdfExport';
+import { exportAffidavitPdf } from '../utils/pdfExport';
+import { exportDrivesCsv } from '../utils/csvExport';
 
 export default function Dashboard() {
   const { studentId } = useParams();
@@ -150,9 +151,24 @@ export default function Dashboard() {
         <button
           className="btn btn-outline"
           disabled={logs.length === 0}
-          onClick={() => exportLogPdf({ student, req, logs, totals: { totalMinutes, nightMinutes }, parentName: user?.name ?? '' })}
+          onClick={() => exportDrivesCsv({ student, logs })}
         >
-          Download Log
+          Download Driving Logs
+        </button>
+        <button
+          className="btn btn-outline"
+          disabled={logs.length === 0}
+          onClick={() =>
+            exportAffidavitPdf({
+              student,
+              req,
+              logs,
+              totals: { totalMinutes, nightMinutes },
+              parentName: user?.name ?? '',
+            })
+          }
+        >
+          Affidavit for the DMV
         </button>
         {isOwner(studentId) && (
           <button className="btn btn-ghost" onClick={() => setShowShareModal(true)}>
