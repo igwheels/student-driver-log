@@ -293,6 +293,21 @@ a { color: inherit; }
   fill: rgba(255,255,255,0.45);
 }
 
+/* Flashcard question prompt. Its own class rather than reusing
+   .no-req-card, which is green because it is a congratulatory message — the
+   wrong signal for a question the reader hasn't answered yet. Mirrors
+   .dash-panel so the two dark panels read as one system, with a blue left
+   edge tying it to the app's accent. */
+.quiz-card {
+  background: linear-gradient(180deg, var(--navy) 0%, var(--navy-light) 100%);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--blue);
+  padding: 22px;
+  color: var(--white);
+  line-height: 1.55;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 12px 30px -14px rgba(20, 28, 46, 0.5);
+}
+
 .no-req-card {
   background: linear-gradient(180deg, #1E5C41 0%, #16452F 100%);
   border-radius: var(--radius-lg);

@@ -51,7 +51,7 @@ export default function Flashcards() {
     return (
       <div className="page">
         <h2 style={{ fontSize: 20, marginBottom: 8 }}>Permit practice</h2>
-        <div className="no-req-card">
+        <div className="quiz-card">
           <p style={{ margin: 0 }}>
             There's no question deck for {student.state} yet.
           </p>
@@ -181,7 +181,7 @@ export default function Flashcards() {
         {card.category}
       </p>
 
-      <div className="no-req-card" style={{ fontSize: 16, lineHeight: 1.5 }}>{card.q}</div>
+      <div className="quiz-card" style={{ fontSize: 16 }}>{card.q}</div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
         {card.choices.map((choice, i) => {
