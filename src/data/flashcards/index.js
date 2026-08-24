@@ -3,6 +3,7 @@
 // plain node and no build step or dependencies.
 import { NE_DECK } from './ne.js';
 import { CA_DECK } from './ca.js';
+import { TX_DECK } from './tx.js';
 
 /**
  * Per-state flashcard decks.
@@ -26,6 +27,12 @@ export const DECKS = {
     cards: CA_DECK,
     manualName: 'California Driver’s Handbook',
     manualUrl: 'https://www.dmv.ca.gov/portal/handbook/california-driver-handbook/',
+    edition: '2025 edition',
+  },
+  TX: {
+    cards: TX_DECK,
+    manualName: 'Texas Driver Handbook (DL-7)',
+    manualUrl: 'https://www.dps.texas.gov/internetforms/forms/dl-7.pdf',
     edition: '2025 edition',
   },
   NE: {
