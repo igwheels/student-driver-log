@@ -5,7 +5,6 @@ import {
   addDoc, collection, collectionGroup, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { emailDocId } from '../utils/emailHash';
-import { deleteAllProgress } from '../utils/flashcardProgress';
 
 const AppContext = createContext(null);
 const STORAGE_KEY = 'sdl_data_v1';
@@ -455,11 +454,9 @@ export function AppProvider({ children }) {
     if (user?.id) {
       try {
         // Deleting a document doesn't cascade-delete its subcollections —
-        // remove the logs and flashcard history first or they'd be left
-        // orphaned in Firestore.
+        // remove the logs first or they'd be left orphaned in Firestore.
         const logsSnap = await getDocs(collection(db, 'users', user.id, 'students', studentId, 'logs'));
         await Promise.all(logsSnap.docs.map((d) => deleteDoc(d.ref)));
-        await deleteAllProgress(user.id, studentId);
         await deleteDoc(doc(db, 'users', user.id, 'students', studentId));
       } catch (e) {
         console.warn('Failed to delete student from Firestore', e);
