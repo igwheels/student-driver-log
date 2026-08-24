@@ -6,6 +6,9 @@ import Gauge from '../components/Gauge';
 import ShareModal from '../components/ShareModal';
 import DriveMap from '../components/DriveMap';
 import { exportLogPdf } from '../utils/pdfExport';
+import { getDeck } from '../data/flashcards';
+import { deckStats } from '../utils/spacedRepetition';
+import { loadProgress } from '../utils/flashcardProgress';
 
 export default function Dashboard() {
   const { studentId } = useParams();
@@ -26,6 +29,22 @@ export default function Dashboard() {
       setSharedUsers(student.sharedWith || []);
     }
   }, [student?.id]);
+
+  // How many flashcards are due, for the dashboard button. Best-effort: if it
+  // fails the button just loses its count rather than blocking the page.
+  const [flashDue, setFlashDue] = useState(null);
+  useEffect(() => {
+    if (!student?.ownerId) return;
+    const deck = getDeck(student.state);
+    if (!deck) return;
+    let cancelled = false;
+    loadProgress(student.ownerId, studentId)
+      .then((p) => {
+        if (!cancelled) setFlashDue(deckStats(deck.cards, p).dueNow);
+      })
+      .catch((e) => console.warn('Could not load flashcard counts:', e));
+    return () => { cancelled = true; };
+  }, [studentId, student?.ownerId, student?.state]);
 
   const refreshPendingRequests = () => {
     if (!isOwner(studentId)) return;
@@ -152,6 +171,12 @@ export default function Dashboard() {
           onClick={() => exportLogPdf({ student, req, logs, totals: { totalMinutes, nightMinutes }, parentName: user?.name ?? '' })}
         >
           Download Log
+        </button>
+        {/* Deliberately not gated on viewOnly: practising for the permit test
+            is the one thing a student can actually do here, and it's the
+            reason the flashcardProgress rule lets them write. */}
+        <button className="btn btn-ghost" onClick={() => navigate(`/flashcards/${studentId}`)}>
+          Permit practice{flashDue != null && flashDue > 0 ? ` · ${flashDue} due` : ''}
         </button>
         {isOwner(studentId) && (
           <button className="btn btn-ghost" onClick={() => setShowShareModal(true)}>
