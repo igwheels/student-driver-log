@@ -3,8 +3,13 @@
 Download a state driver's manual and extract its text, so a flashcard deck can
 be written from the actual source rather than from memory.
 
-    pip install pypdf     # only dependency; a maintainer tool, not part of the app
+    pip install pypdf cryptography   # maintainer tool, not part of the app
     python3 scripts/extract-manual.py <pdf-url> <out.txt>
+
+`cryptography` is needed because some states ship AES-encrypted PDFs —
+California's is one — and pypdf raises DependencyError on those without it.
+The file still opens fine in a reader, so the encryption is not a
+restriction on access, just on how pypdf decodes it.
 
 Text is written one page at a time with "=== PAGE n ===" separators, because
 deck cards cite a manual page and the citation has to be checkable. The page
