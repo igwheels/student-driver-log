@@ -1,4 +1,7 @@
-import { NE_DECK } from './ne';
+// Explicit .js extension (unlike most imports in this codebase, which Vite
+// resolves without one) so scripts/validate-decks.mjs can load this file with
+// plain node and no build step or dependencies.
+import { NE_DECK } from './ne.js';
 
 /**
  * Per-state flashcard decks.

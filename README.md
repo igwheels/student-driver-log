@@ -58,6 +58,57 @@ Note that rules cannot inspect a query's filters — they authorize the operatio
 
 `src/data/stateRequirements.js` encodes the IIHS Graduated Licensing Laws table as of **July 2026**, including per-state night-hour rules and notes (e.g., "waived with driver's ed"). GDL laws change — add a "verify with your DMV" note in the UI/PDF and re-check the IIHS table periodically.
 
+## Permit practice flashcards
+
+Multiple-choice review on the dashboard, scheduled by spaced repetition
+(`src/utils/spacedRepetition.js`, SM-2: correct answers step 1 day → 3 days →
+compounding by an ease factor; a wrong answer resets the card and requeues it
+in the same session). Progress is stored per student at
+`users/{ownerId}/students/{studentId}/flashcardProgress/{cardId}` — one record
+per student, so a parent quizzing them and the student practising alone build
+the same schedule.
+
+This subcollection is **the one thing a student with read-only access may
+write**. Everything else on their dashboard is a record kept about them by an
+adult; these are their own answers, and spaced repetition does nothing if the
+person answering can't record them.
+
+### Adding a state
+
+A state gets a deck only once that deck has been written from its official
+manual, with every card citing the manual page its answer comes from. States
+without one say so in the app and link to their manual, rather than falling
+back to generic questions.
+
+That rule is the whole point. The facts a permit test asks about — speed
+limits, parking distances, BAC thresholds, GDL restrictions — are exactly the
+ones that differ between states. A card that is merely plausible is worse than
+no card when someone is studying for a real licensing test.
+
+```bash
+pip install pypdf                                    # one-time
+python3 scripts/extract-manual.py <pdf-url> ne.txt   # download + extract
+```
+
+Then write `src/data/flashcards/<state>.js` from the extracted text, register
+it in `src/data/flashcards/index.js` with the manual's name, URL and edition,
+and validate:
+
+```bash
+node scripts/validate-decks.mjs
+```
+
+The validator checks for duplicate ids and questions, duplicate or empty
+choices, missing categories, missing manual references, and — the one nothing
+else would catch — `answer` indices outside the choices array, which would
+silently mark the right answer wrong. It exits non-zero on any error.
+
+Two things worth knowing when writing a deck: the page numbers the extractor
+emits are PDF pages, which usually differ from the number printed on the page
+by a few pages of front matter, so cite the printed one. And many manuals
+include an official practice exam with an answer key, which is the best
+possible source for card wording.
+
 ## Sharing a student with another parent
 
 A student's owner can share their dashboard with another parent/guardian by email from the student's dashboard (**Share** button). Access is enforced by Firestore security rules matching the signed-in user's email against the student's `sharedWithEmails` list, so it takes effect the instant the recipient is signed in with that email — whether they already had an account or just created one. Shared users can view the dashboard, add/delete drives, and export the PDF log, but can't edit the student's name/state or delete the student. Unsharing removes future access but keeps any drives that user logged.
