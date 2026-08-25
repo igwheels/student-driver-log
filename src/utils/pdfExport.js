@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { localOffsetMinutes, toZonedTimeInput } from './driveTime';
 import { downloadFileName } from './fileName';
+import { affidavitRulesFor } from '../data/stateAffidavits';
 
 /**
  * Generates a notarization-ready affidavit of supervised driving.
@@ -24,13 +25,18 @@ import { downloadFileName } from './fileName';
  *  - A 2in blank bordered square for the notary's seal. Embossed and ink
  *    stamps need clear space and cannot overlap text.
  *
- * ON STATE VARIATION: this is a generic form. Notarization requirements,
- * required wording, and DMV form numbers differ by state — some states want
- * no notarization at all, others mandate a specific form or a specific
- * notarial certificate. Rather than invent per-state legal language, the
- * document carries a disclaimer telling the signer to check it against their
- * state's own form before relying on it. Fabricated "required" wording would
- * be worse than none: this is a sworn document.
+ * ON STATE VARIATION: the document adapts to the state (see
+ * data/stateAffidavits.js) but is never presented as that state's official
+ * form. Where a state mandates a numbered form, page one names it, links the
+ * state's own copy, and says plainly that this does not replace it; the
+ * notary guidance and the disclaimer likewise carry what is known about that
+ * state, including where the underlying research was unsure.
+ *
+ * It deliberately stops short of reproducing official forms. A replica built
+ * from anything but the current official PDF risks a wrong field, a stale
+ * revision, or altered certification language — on a document someone swears
+ * to and a clerk may reject. Naming the real form and pointing at it serves
+ * the parent better than a convincing forgery of it.
  */
 
 const PAGE = { width: 612, height: 792 };
@@ -107,6 +113,7 @@ export function exportAffidavitPdf({ student, req, logs, totals, parentName }) {
     drawText(Array.isArray(txt) ? txt.map(ascii) : ascii(txt), x, y, opts);
   const wrap = (text, width) => doc.splitTextToSize(ascii(text), width);
 
+  const rules = affidavitRulesFor(student.state);
   const exportedOn = longDate(new Date());
   const range = dateRange(logs);
   const nightMinutes = totals.nightMinutes ?? 0;
@@ -132,6 +139,44 @@ export function exportAffidavitPdf({ student, req, logs, totals, parentName }) {
   y += 16;
   doc.text(`Record prepared: ${exportedOn}`, MARGIN, y);
   y += 26;
+
+  // ---- What this state actually requires ----
+  // Placed above the figures because it changes what the reader should do
+  // with the page. Where a specific official form is mandated, this document
+  // does not stand in for it and must not be presented as though it does.
+  if (rules.kind === 'specific' && rules.formLabel) {
+    const lines = wrap(
+      `${req.name} requires ${rules.formLabel} to certify supervised driving hours. ` +
+        'This document does not replace that form. Obtain the official form from the ' +
+        `state${rules.url ? ` at ${rules.url}` : ''}, and use the record below to complete it.` +
+        (rules.note ? ` ${rules.note}` : ''),
+      CONTENT_WIDTH - 24
+    );
+    const boxHeight = lines.length * 12 + 30;
+    doc.setLineWidth(1);
+    doc.rect(MARGIN, y - 12, CONTENT_WIDTH, boxHeight);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('REQUIRED STATE FORM', MARGIN + 12, y + 2);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(lines, MARGIN + 12, y + 16);
+    y += boxHeight + 14;
+  } else if (rules.kind === 'none') {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.text(
+      wrap(
+        `${req.name} does not require a minimum number of supervised driving hours. ` +
+          'This record is provided for your own use.',
+        CONTENT_WIDTH
+      ),
+      MARGIN,
+      y
+    );
+    doc.setFont('helvetica', 'normal');
+    y += 24;
+  }
 
   // ---- Summary: the numbers someone is verifying ----
   doc.setFont('helvetica', 'bold');
@@ -223,10 +268,16 @@ export function exportAffidavitPdf({ student, req, logs, totals, parentName }) {
   doc.line(MARGIN, y, MARGIN + CONTENT_WIDTH, y);
   y += 16;
 
-  doc.setFont('helvetica', 'italic');
+  // What this state actually asks for, rather than a blanket "if required".
+  const notaryGuidance =
+    rules.notaryNote ??
+    (rules.notary === 'required'
+      ? `${req.name} requires this certification to be sworn before a notary.`
+      : 'Complete only if your state requires this affidavit to be notarized.');
+  doc.setFont('helvetica', rules.notary === 'required' ? 'bold' : 'italic');
   doc.setFontSize(9);
-  doc.text('Complete only if your state requires this affidavit to be notarized.', MARGIN, y);
-  y += 26;
+  doc.text(wrap(notaryGuidance, CONTENT_WIDTH), MARGIN, y);
+  y += wrap(notaryGuidance, CONTENT_WIDTH).length * 12 + 16;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(11);
@@ -271,7 +322,15 @@ export function exportAffidavitPdf({ student, req, logs, totals, parentName }) {
     'This is a general-purpose affidavit, not an official form of any state. Requirements differ by ' +
       'state: some do not require notarization, and some require a specific DMV form or specific ' +
       "wording. Check this document against your state DMV's own requirements before submitting it, " +
-      'and use their form instead where one is prescribed.',
+      'and use their form instead where one is prescribed.' +
+      (rules.verify
+        ? ` The requirements recorded for ${req.name} are unconfirmed against a current official source ` +
+          '- verify them directly before relying on this document.'
+        : '') +
+      (rules.effectiveFrom
+        ? ` Note that this requirement applies only to permits issued on or after ${rules.effectiveFrom}.`
+        : '') +
+      (rules.conditional ? ` ${rules.conditional}` : ''),
     CONTENT_WIDTH
   );
   doc.text(disclaimer, MARGIN, disclaimerY);
@@ -285,9 +344,22 @@ export function exportAffidavitPdf({ student, req, logs, totals, parentName }) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.text(`${studentName} - ${logs.length} drives, ${fmtDur(totals.totalMinutes ?? 0)} total`, MARGIN, MARGIN + 18);
+    // Several states certify a dated per-session log rather than a total, so
+    // say which shape this state wants rather than leaving it as an appendix
+    // the reader might skip.
+    if (rules.shape === 'per-drive') {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.text(
+        `${req.name} certifies a dated record of each session, not only a total. This table is that record.`,
+        MARGIN,
+        MARGIN + 32
+      );
+      doc.setFont('helvetica', 'normal');
+    }
 
     autoTable(doc, {
-      startY: MARGIN + 34,
+      startY: MARGIN + (rules.shape === 'per-drive' ? 48 : 34),
       margin: { left: MARGIN, right: MARGIN },
       head: [['Date', 'Start', 'End', 'Duration', 'Time of Day', 'Type', 'Distance']],
       body: [...logs]
