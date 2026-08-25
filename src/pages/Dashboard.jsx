@@ -7,6 +7,7 @@ import ShareModal from '../components/ShareModal';
 import DriveMap from '../components/DriveMap';
 import { exportAffidavitPdf } from '../utils/pdfExport';
 import { exportDrivesCsv } from '../utils/csvExport';
+import { hasStateForm, stateFormLabel, exportFilledStateForm } from '../utils/stateFormFill';
 
 export default function Dashboard() {
   const { studentId } = useParams();
@@ -20,6 +21,17 @@ export default function Dashboard() {
   const [sharedUsers, setSharedUsers] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [pendingActionId, setPendingActionId] = useState(null);
+  const [formStatus, setFormStatus] = useState('');
+
+  const handleStateForm = async () => {
+    setFormStatus('');
+    try {
+      await exportFilledStateForm({ student, parentName: user?.name ?? '' });
+      setFormStatus('Downloaded. Add anything the app could not know, then sign it by hand.');
+    } catch (e) {
+      setFormStatus(e.message || 'Could not prepare the state form.');
+    }
+  };
 
   // Update shared users when student changes
   useEffect(() => {
@@ -147,6 +159,15 @@ export default function Dashboard() {
         >
           Affidavit for the DMV
         </button>
+        {/* Only where the app carries that state's own official form. */}
+        {hasStateForm(student.state) && (
+          <button className="btn btn-outline" onClick={handleStateForm}>
+            Fill {stateFormLabel(student.state)}
+          </button>
+        )}
+        {formStatus && (
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>{formStatus}</p>
+        )}
         {isOwner(studentId) && (
           <button className="btn btn-ghost" onClick={() => setShowShareModal(true)}>
             Share
