@@ -23,16 +23,6 @@ export default function Dashboard() {
   const [pendingActionId, setPendingActionId] = useState(null);
   const [formStatus, setFormStatus] = useState('');
 
-  const handleStateForm = async () => {
-    setFormStatus('');
-    try {
-      await exportFilledStateForm({ student, parentName: user?.name ?? '' });
-      setFormStatus('Downloaded. Add anything the app could not know, then sign it by hand.');
-    } catch (e) {
-      setFormStatus(e.message || 'Could not prepare the state form.');
-    }
-  };
-
   // Update shared users when student changes
   useEffect(() => {
     if (student) {
@@ -101,6 +91,42 @@ export default function Dashboard() {
 
   const fmtDuration = (mins) => `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;
 
+  // One button, whichever document this state actually needs. Where the app
+  // carries the state's own official form, that is what the parent wants —
+  // the generic affidavit would only be a second-best copy of it. Everywhere
+  // else the generic affidavit is the document.
+  const buildGenericAffidavit = () =>
+    exportAffidavitPdf({
+      student,
+      req,
+      logs,
+      totals: { totalMinutes, nightMinutes },
+      parentName: user?.name ?? '',
+    });
+
+  const handleDmvForm = async () => {
+    setFormStatus('');
+    if (!hasStateForm(student.state)) {
+      buildGenericAffidavit();
+      return;
+    }
+    try {
+      await exportFilledStateForm({ student, parentName: user?.name ?? '' });
+      setFormStatus(
+        `${stateFormLabel(student.state)} downloaded. Add anything the app can't know, then sign it by hand.`
+      );
+    } catch (e) {
+      // The official form is the right document, so failing to produce it is
+      // worth saying out loud rather than quietly handing over a different
+      // one — but a general affidavit still beats nothing.
+      buildGenericAffidavit();
+      setFormStatus(
+        `Could not load ${stateFormLabel(student.state)} (${e.message}). ` +
+          'Downloaded the general affidavit instead — check it against your state’s own form.'
+      );
+    }
+  };
+
   return (
     <div className="page">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
@@ -167,27 +193,9 @@ export default function Dashboard() {
         >
           Download Driving Logs
         </button>
-        <button
-          className="btn btn-outline"
-          disabled={logs.length === 0}
-          onClick={() =>
-            exportAffidavitPdf({
-              student,
-              req,
-              logs,
-              totals: { totalMinutes, nightMinutes },
-              parentName: user?.name ?? '',
-            })
-          }
-        >
-          Affidavit for the DMV
+        <button className="btn btn-outline" disabled={logs.length === 0} onClick={handleDmvForm}>
+          Form for DMV
         </button>
-        {/* Only where the app carries that state's own official form. */}
-        {hasStateForm(student.state) && (
-          <button className="btn btn-outline" onClick={handleStateForm}>
-            Fill {stateFormLabel(student.state)}
-          </button>
-        )}
         {formStatus && (
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>{formStatus}</p>
         )}
