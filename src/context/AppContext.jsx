@@ -5,6 +5,7 @@ import {
   addDoc, collection, collectionGroup, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { emailDocId } from '../utils/emailHash';
+import { STATE_REQUIREMENTS } from '../data/stateRequirements';
 
 const AppContext = createContext(null);
 const STORAGE_KEY = 'sdl_data_v1';
@@ -396,6 +397,29 @@ export function AppProvider({ children }) {
     }
   };
 
+  // For a student who moves. The state determines which hour requirement the
+  // dashboard measures against and which DMV form the app produces, so it has
+  // to be changeable without recreating the dashboard and losing its drives.
+  //
+  // Logged drives are untouched: the hours were driven either way, and it is
+  // the requirement they count toward that moves. studentDirectory holds no
+  // state, so nothing needs syncing there.
+  const updateStudentState = async (studentId, newState) => {
+    const student = students.find((s) => s.id === studentId);
+    if (!student || student.ownerId !== user?.id) {
+      throw new Error('Only the owner can edit a student');
+    }
+    // An unrecognised code would leave the dashboard reading requirements off
+    // undefined, so refuse it here rather than write it and break the page.
+    if (!STATE_REQUIREMENTS[newState]) {
+      throw new Error('Please choose a state.');
+    }
+    if (newState === student.state) return;
+
+    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, state: newState } : s)));
+    await updateDoc(doc(db, 'users', user.id, 'students', studentId), { state: newState });
+  };
+
   // Records outside the student document that reference it, and would
   // otherwise outlive it: the directory entry (which any signed-in user can
   // read given the email), plus any access requests and queued invitations
@@ -615,6 +639,7 @@ export function AppProvider({ children }) {
         getLogs,
         getTotals,
         updateStudentEmail,
+        updateStudentState,
         deleteStudent,
         deleteDrive,
         hydrated,

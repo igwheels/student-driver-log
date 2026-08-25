@@ -1,12 +1,115 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { STATE_REQUIREMENTS } from '../data/stateRequirements';
+import { STATE_REQUIREMENTS, STATE_LIST } from '../data/stateRequirements';
+import { hasStateForm, stateFormLabel } from '../utils/stateFormFill';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const fmtHours = (minutes) => (minutes / 60).toFixed(1);
+
+/** "50 hours, 10 at night" — or that the state sets no minimum. */
+function describeRequirement(stateCode) {
+  const req = STATE_REQUIREMENTS[stateCode];
+  if (!req) return null;
+  if (req.totalHours === 0) return 'no minimum hours';
+  return `${req.totalHours} hours${req.nightHours > 0 ? `, ${req.nightHours} at night` : ''}`;
+}
+
 export default function ManageStudents() {
-  const { students, isOwner, updateStudentEmail, setStudentLoginAccess, deleteStudent } = useApp();
+  const {
+    students,
+    isOwner,
+    updateStudentEmail,
+    updateStudentState,
+    setStudentLoginAccess,
+    deleteStudent,
+    getTotals,
+  } = useApp();
   const ownedStudents = students.filter((s) => isOwner(s.id));
+
+  // The badge itself is the control: it already shows the state, so changing
+  // it needs no separate field or section. Choosing from the list opens a
+  // confirmation rather than saving straight away — the requirement a
+  // dashboard is measured against is not something to change on a mis-tap,
+  // and what it does to the gauges isn't obvious without being told.
+  const [stateEditingId, setStateEditingId] = useState(null);
+  const [stateBusyId, setStateBusyId] = useState(null);
+  const [pendingState, setPendingState] = useState(null); // { student, nextState } | null
+  const [stateNote, setStateNote] = useState(null); // { id, text } | null
+  const [stateError, setStateError] = useState(null); // { id, text } | null
+
+  const chooseState = (student, nextState) => {
+    setStateEditingId(null);
+    setStateError(null);
+    if (!nextState || nextState === student.state) return;
+    setPendingState({ student, nextState });
+  };
+
+  const confirmStateChange = async () => {
+    if (!pendingState) return;
+    const { student, nextState } = pendingState;
+    const from = STATE_REQUIREMENTS[student.state]?.name ?? student.state;
+    setStateBusyId(student.id);
+    try {
+      await updateStudentState(student.id, nextState);
+      setPendingState(null);
+      setStateNote({
+        id: student.id,
+        text: `Moved from ${from} to ${STATE_REQUIREMENTS[nextState].name}. Every logged drive was kept.`,
+      });
+    } catch (e) {
+      setPendingState(null);
+      setStateError({ id: student.id, text: e.message || 'Could not update the state.' });
+    } finally {
+      setStateBusyId(null);
+    }
+  };
+
+  /**
+   * What changing state actually does. The drives are untouched, so the whole
+   * effect is on the requirement they're measured against — which can move a
+   * dashboard from finished to well short without a single drive changing.
+   */
+  const stateChangeImpact = ({ student, nextState }) => {
+    const from = STATE_REQUIREMENTS[student.state];
+    const to = STATE_REQUIREMENTS[nextState];
+    const { totalMinutes, nightMinutes } = getTotals(student.id);
+    const lines = [];
+
+    const shortfall = (loggedMinutes, goalHours) => {
+      const remaining = goalHours * 60 - loggedMinutes;
+      return remaining <= 0
+        ? 'already met'
+        : `${fmtHours(remaining)} more needed`;
+    };
+
+    if (to.totalHours > 0) {
+      lines.push(
+        `Total: ${fmtHours(totalMinutes)} logged against ${to.totalHours} required — ${shortfall(totalMinutes, to.totalHours)}.`
+      );
+    } else {
+      lines.push(`${to.name} sets no minimum, so the hour gauges no longer apply.`);
+    }
+
+    if (to.nightHours > 0) {
+      lines.push(
+        `Night: ${fmtHours(nightMinutes)} logged against ${to.nightHours} required — ${shortfall(nightMinutes, to.nightHours)}.`
+      );
+    } else if (from.nightHours > 0) {
+      lines.push(`${to.name} has no separate night requirement.`);
+    }
+
+    // The DMV button resolves by state, so this changes what it produces.
+    if (hasStateForm(nextState)) {
+      lines.push(`Form for DMV will produce ${to.name}'s ${stateFormLabel(nextState)}.`);
+    } else if (hasStateForm(student.state)) {
+      lines.push(
+        `Form for DMV will produce the general affidavit instead of ${from.name}'s ${stateFormLabel(student.state)}.`
+      );
+    }
+
+    return lines;
+  };
 
   const [editingId, setEditingId] = useState(null);
   const [emailInput, setEmailInput] = useState('');
@@ -90,10 +193,63 @@ export default function ManageStudents() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div className="name">{fullName(s)}</div>
-                <div className="sub">{STATE_REQUIREMENTS[s.state]?.name}</div>
+                {/* The requirement, not just the state name — it's the reason
+                    someone would change the state, and there's no hover to
+                    reveal a title attribute on a phone. */}
+                <div className="sub">
+                  {STATE_REQUIREMENTS[s.state]?.name} — {describeRequirement(s.state)}
+                </div>
               </div>
-              <div className="plate-badge">{s.state}</div>
+              {/* The badge is the control. Only the list of real states can
+                  be chosen from it, so there is no way to land on a code the
+                  app doesn't recognise. */}
+              {stateEditingId === s.id ? (
+                <select
+                  autoFocus
+                  value={s.state}
+                  onChange={(e) => chooseState(s, e.target.value)}
+                  onBlur={() => setStateEditingId(null)}
+                  aria-label={`State of residence for ${fullName(s)}`}
+                  style={{
+                    padding: '5px 8px',
+                    borderRadius: 6,
+                    border: '1px solid var(--navy)',
+                    fontSize: 13,
+                    maxWidth: 180,
+                  }}
+                >
+                  {STATE_LIST.map((st) => (
+                    <option key={st.code} value={st.code}>{st.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <button
+                  className="plate-badge"
+                  onClick={() => {
+                    setStateEditingId(s.id);
+                    setStateNote(null);
+                    setStateError(null);
+                  }}
+                  disabled={stateBusyId === s.id}
+                  title={`${STATE_REQUIREMENTS[s.state]?.name} — ${describeRequirement(s.state)}. Tap to change.`}
+                  style={{ border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  {stateBusyId === s.id ? '…' : s.state}
+                  <span aria-hidden="true" style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
+                </button>
+              )}
             </div>
+
+            {stateNote?.id === s.id && (
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+                {stateNote.text}
+              </p>
+            )}
+            {stateError?.id === s.id && (
+              <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 10, marginBottom: 0 }}>
+                {stateError.text}
+              </p>
+            )}
 
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)', marginBottom: 6 }}>
@@ -190,6 +346,55 @@ export default function ManageStudents() {
             </button>
           </div>
         ))
+      )}
+
+      {pendingState && (
+        <div className="modal-backdrop" onClick={() => setPendingState(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-text" style={{ marginBottom: 4 }}>
+              Move {pendingState.student.firstName} to{' '}
+              {STATE_REQUIREMENTS[pendingState.nextState].name}?
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '10px 0 14px', lineHeight: 1.5 }}>
+              {STATE_REQUIREMENTS[pendingState.student.state]?.name}:{' '}
+              {describeRequirement(pendingState.student.state)}
+              {' → '}
+              {STATE_REQUIREMENTS[pendingState.nextState].name}:{' '}
+              {describeRequirement(pendingState.nextState)}
+            </p>
+
+            <ul style={{ fontSize: 13, color: 'var(--navy)', textAlign: 'left', margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+              {stateChangeImpact(pendingState).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 14, marginBottom: 0, lineHeight: 1.5 }}>
+              Every logged drive is kept — only the requirement they count toward changes. You can
+              change it back at any time.
+            </p>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button
+                className="btn btn-outline"
+                style={{ flex: 1 }}
+                onClick={() => setPendingState(null)}
+                disabled={stateBusyId === pendingState.student.id}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                onClick={confirmStateChange}
+                disabled={stateBusyId === pendingState.student.id}
+              >
+                {stateBusyId === pendingState.student.id ? 'Saving…' : 'Change state'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteTarget && (
