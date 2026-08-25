@@ -57,6 +57,12 @@ service cloud.firestore {
     //
     // Writes are pinned to exactly the two fields the app writes, with the
     // right types, so this can't be used as free unauthenticated storage.
+    // updatedAt is length-capped as well: the app writes an ISO timestamp
+    // (24 chars, see src/utils/emailPreferences.js), and without a cap the
+    // field would accept up to a megabyte of arbitrary data per document.
+    // The cap bounds what one document can hold; it does not bound how many
+    // documents an anonymous caller can create, which is the same gap the
+    // note below describes and needs the same fix.
     //
     // Residual, accepted for now: anyone who knows an address can still
     // toggle that address's preference. Closing that needs a signed token in
@@ -72,7 +78,9 @@ service cloud.firestore {
       allow list: if false;
       allow create, update: if
         request.resource.data.keys().hasOnly(['weeklyEmailOptOut', 'updatedAt']) &&
-        request.resource.data.weeklyEmailOptOut is bool;
+        request.resource.data.weeklyEmailOptOut is bool &&
+        request.resource.data.updatedAt is string &&
+        request.resource.data.updatedAt.size() < 40;
       allow delete: if signedIn() && email == myEmail();
     }
 
