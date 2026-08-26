@@ -162,9 +162,11 @@ export const STATE_AFFIDAVITS = {
         conditional: 'Includes an inclement-weather hours component.' },
   TN: { kind: 'specific', form: 'Certification of 50 Hours Behind the Wheel', number: 'SF-1256', shape: 'summary',
         url: 'https://www.tn.gov/safety/driver-services.html' },
-  TX: { kind: 'specific', form: 'Behind-the-Wheel Instruction Log', shape: 'per-drive',
+  TX: { kind: 'specific', form: 'Driver Education 30 Hour Behind the Wheel Log', number: 'DES150N', shape: 'per-drive',
         url: 'https://www.tdlr.texas.gov/',
-        note: 'A TDLR/DPS format rather than a numbered form.' },
+        note: 'Only 2 hours of behind-the-wheel instruction per day (1 day, 1 night) count toward ' +
+              'the 30 hours, regardless of how much was actually driven — the form states this ' +
+              'explicitly.' },
   UT: { kind: 'generic', shape: 'per-drive', note: 'A parent-certified driving log; no numbered form.' },
   VT: { kind: 'specific', form: 'Driving Practice Log Sheet', number: 'VN-210', shape: 'per-drive',
         url: 'https://dmv.vermont.gov/',
