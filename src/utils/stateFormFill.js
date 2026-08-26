@@ -449,13 +449,35 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
 // with a fixed number of day/night rows per category and the hours for
 // each row already pre-printed by the state (e.g. "Backing" gets exactly
 // one 30-minute day row and one 30-minute night row, always). So instead
-// of placing drives into a flat pool of rows, each category pulls only
-// from drives the parent tagged with that category (see
-// src/data/skillCategories.js), split into that category's own day-row and
-// night-row pools, most recent first same as every other log here. A
-// handful of rows ask for both a day amount and a night amount in the same
-// row (City Driving and Expressway/Freeway Driving each have one) — there
-// is no single drive that is both, so those rows are left for the parent.
+// of placing one drive per row, each category pulls only from drives the
+// parent tagged with that category (see src/data/skillCategories.js),
+// split into that category's own day-row and night-row pools in
+// chronological order, and accumulates minutes toward each row's
+// pre-printed duration (category.unitMinutes) — a row is only filled once
+// the running total reaches it, using the date/time of whichever drive
+// crossed the threshold (i.e. the most recent drive that contributed to
+// that row). A handful of rows ask for both a day amount and a night
+// amount in the same row (City Driving and Expressway/Freeway Driving each
+// have one) — there is no single drive that is both, so those rows are
+// left for the parent.
+function accumulateCategoryRows(sortedLogs, unitMinutes, capacity) {
+  const rows = [];
+  let cumulativeMinutes = 0;
+  let consumed = 0;
+
+  for (const log of sortedLogs) {
+    if (rows.length >= capacity) break;
+    cumulativeMinutes += log.durationMinutes ?? 0;
+    consumed += 1;
+    while (cumulativeMinutes >= unitMinutes && rows.length < capacity) {
+      rows.push(log);
+      cumulativeMinutes -= unitMinutes;
+    }
+  }
+
+  return { rows, omitted: sortedLogs.length - consumed };
+}
+
 async function drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const page = pdf.getPages()[template.log.page ?? 0];
@@ -480,12 +502,15 @@ async function drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }
     const nightLogs = tagged.filter((l) => l.timeOfDay === 'night').sort(byTimeAsc);
     const dayCapacity = category.day?.length ?? 0;
     const nightCapacity = category.night?.length ?? 0;
+    const unitMinutes = category.unitMinutes ?? 60;
 
-    const dayRows =
-      dayLogs.length > dayCapacity ? dayLogs.slice(dayLogs.length - dayCapacity) : dayLogs;
-    const nightRows =
-      nightLogs.length > nightCapacity ? nightLogs.slice(nightLogs.length - nightCapacity) : nightLogs;
-    omittedCount += Math.max(0, dayLogs.length - dayCapacity) + Math.max(0, nightLogs.length - nightCapacity);
+    const { rows: dayRows, omitted: dayOmitted } = accumulateCategoryRows(
+      dayLogs, unitMinutes, dayCapacity,
+    );
+    const { rows: nightRows, omitted: nightOmitted } = accumulateCategoryRows(
+      nightLogs, unitMinutes, nightCapacity,
+    );
+    omittedCount += dayOmitted + nightOmitted;
 
     dayRows.forEach((log, i) => place(log, category.day[i]));
     nightRows.forEach((log, i) => place(log, category.night[i]));
