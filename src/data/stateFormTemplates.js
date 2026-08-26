@@ -408,6 +408,12 @@ const wvRowYs = [
 // unitMinutes is the pre-printed duration each row represents ("1 hour" or
 // "30 minutes" per the state's own text) — a row is only filled once the
 // student's tagged drives for that day/night pool cumulatively reach it.
+// City Driving and Expressway/Freeway Driving each have one extra row that
+// asks for both a day amount and a night amount at once (measured from the
+// form's own "30 minutes 30 minutes" text on that row) — it fills only once
+// both the day and night pools for that category have separately reached
+// mixed.dayMinutes / mixed.nightMinutes, counting from wherever the pool's
+// own single-sided rows above left off.
 const TX_ROWS_BY_CATEGORY = [
   { day: [651.8], night: [635.7], unitMinutes: 60 },
   { day: [618.2, 604.2], night: [589.3], unitMinutes: 60 },
@@ -417,8 +423,14 @@ const TX_ROWS_BY_CATEGORY = [
   { day: [432.4], night: [418.4], unitMinutes: 30 },
   { day: [400.8], night: [386.9], unitMinutes: 60 },
   { day: [369.3, 355.3, 340.4], night: [325.5], unitMinutes: 60 },
-  { day: [308.0, 293.9, 279.0], night: [249.2], unitMinutes: 60 },
-  { day: [231.6, 217.6, 202.7], night: [172.8], unitMinutes: 60 },
+  {
+    day: [308.0, 293.9, 279.0], night: [249.2], unitMinutes: 60,
+    mixed: { y: 264.1, dayMinutes: 30, nightMinutes: 30 },
+  },
+  {
+    day: [231.6, 217.6, 202.7], night: [172.8], unitMinutes: 60,
+    mixed: { y: 187.8, dayMinutes: 30, nightMinutes: 30 },
+  },
 ];
 const txCategoryRows = SKILL_CATEGORIES.map((cat, i) => ({
   key: cat.key,
@@ -1038,7 +1050,10 @@ export const STATE_FORM_TEMPLATES = {
       'driven — the app applies that same cap wherever it shows this student’s progress, not ' +
       'just on this form. A row only appears once the cumulative time logged under that ' +
       'category and day/night matches the row’s pre-printed duration (1 hour or 30 minutes); ' +
-      'the date and time shown are from the drive that completed it.',
+      'the date and time shown are from the drive that completed it. City Driving and ' +
+      'Expressway/Freeway Driving each have one row asking for both a day and a night amount — ' +
+      'it fills only once both have separately been met (counting from where that category’s ' +
+      'other rows left off), showing whichever of the two was completed more recently.',
   },
 
   MN: {
