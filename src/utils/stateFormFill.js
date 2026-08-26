@@ -458,39 +458,47 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
 // crossed the threshold (i.e. the most recent drive that contributed to
 // that row). City Driving and Expressway/Freeway Driving each have one
 // extra row asking for both a day amount and a night amount at once
-// (category.mixed) — it's filled only once both pools, continuing from
-// wherever their own single-sided rows above left off, separately reach
-// their own thresholds, using whichever side's drive completed later.
-function accumulateCategoryRows(sortedLogs, unitMinutes, capacity) {
+// (category.mixed) — once this pool's own rows are full, any leftover
+// minutes from the drive that completed the last one roll forward into the
+// mixed pool (a single long drive can finish a normal row and start the
+// mixed one), followed by any further tagged drives, until
+// mixedThresholdMinutes is reached.
+function accumulatePoolRows(sortedLogs, unitMinutes, capacity, mixedThresholdMinutes) {
   const rows = [];
+  const wantsMixed = mixedThresholdMinutes != null;
   let cumulativeMinutes = 0;
-  let consumed = 0;
+  let mixedCumulativeMinutes = 0;
+  let mixedLog = null;
+  let mixedDone = false;
+  let omitted = 0;
 
   for (const log of sortedLogs) {
-    if (rows.length >= capacity) break;
-    cumulativeMinutes += log.durationMinutes ?? 0;
-    consumed += 1;
-    while (cumulativeMinutes >= unitMinutes && rows.length < capacity) {
-      rows.push(log);
-      cumulativeMinutes -= unitMinutes;
+    const rowsFull = rows.length >= capacity;
+    if (rowsFull && (!wantsMixed || mixedDone)) {
+      omitted += 1;
+      continue;
+    }
+
+    if (!rowsFull) {
+      cumulativeMinutes += log.durationMinutes ?? 0;
+      while (cumulativeMinutes >= unitMinutes && rows.length < capacity) {
+        rows.push(log);
+        cumulativeMinutes -= unitMinutes;
+      }
+      if (rows.length >= capacity && wantsMixed && cumulativeMinutes > 0) {
+        mixedCumulativeMinutes += cumulativeMinutes;
+        mixedLog = log;
+        cumulativeMinutes = 0;
+        if (mixedCumulativeMinutes >= mixedThresholdMinutes) mixedDone = true;
+      }
+    } else {
+      mixedCumulativeMinutes += log.durationMinutes ?? 0;
+      mixedLog = log;
+      if (mixedCumulativeMinutes >= mixedThresholdMinutes) mixedDone = true;
     }
   }
 
-  return { rows, consumed };
-}
-
-// Consumes from the front of sortedLogs until the running total reaches
-// thresholdMinutes; returns the completing log and how many logs it took,
-// or null if the pool runs out first.
-function accumulateThreshold(sortedLogs, thresholdMinutes) {
-  let cumulativeMinutes = 0;
-  for (let i = 0; i < sortedLogs.length; i += 1) {
-    cumulativeMinutes += sortedLogs[i].durationMinutes ?? 0;
-    if (cumulativeMinutes >= thresholdMinutes) {
-      return { log: sortedLogs[i], consumed: i + 1 };
-    }
-  }
-  return null;
+  return { rows, mixedLog: mixedDone ? mixedLog : null, omitted };
 }
 
 async function drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
@@ -519,34 +527,19 @@ async function drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }
     const nightCapacity = category.night?.length ?? 0;
     const unitMinutes = category.unitMinutes ?? 60;
 
-    const { rows: dayRows, consumed: dayConsumed } = accumulateCategoryRows(
-      dayLogs, unitMinutes, dayCapacity,
-    );
-    const { rows: nightRows, consumed: nightConsumed } = accumulateCategoryRows(
-      nightLogs, unitMinutes, nightCapacity,
-    );
-    dayRows.forEach((log, i) => place(log, category.day[i]));
-    nightRows.forEach((log, i) => place(log, category.night[i]));
+    const day = accumulatePoolRows(dayLogs, unitMinutes, dayCapacity, category.mixed?.dayMinutes);
+    const night = accumulatePoolRows(nightLogs, unitMinutes, nightCapacity, category.mixed?.nightMinutes);
+    day.rows.forEach((log, i) => place(log, category.day[i]));
+    night.rows.forEach((log, i) => place(log, category.night[i]));
+    omittedCount += day.omitted + night.omitted;
 
-    let dayShown = dayConsumed;
-    let nightShown = nightConsumed;
-
-    if (category.mixed) {
-      const dayResult = accumulateThreshold(dayLogs.slice(dayConsumed), category.mixed.dayMinutes);
-      const nightResult = accumulateThreshold(nightLogs.slice(nightConsumed), category.mixed.nightMinutes);
-      if (dayResult && nightResult) {
-        const completingLog =
-          new Date(dayResult.log.startTime) >= new Date(nightResult.log.startTime)
-            ? dayResult.log
-            : nightResult.log;
-        place(completingLog, category.mixed.y);
-        dayShown += dayResult.consumed;
-        nightShown += nightResult.consumed;
-      }
+    if (category.mixed && day.mixedLog && night.mixedLog) {
+      const completingLog =
+        new Date(day.mixedLog.startTime) >= new Date(night.mixedLog.startTime)
+          ? day.mixedLog
+          : night.mixedLog;
+      place(completingLog, category.mixed.y);
     }
-
-    if (dayRows.length >= dayCapacity) omittedCount += Math.max(0, dayLogs.length - dayShown);
-    if (nightRows.length >= nightCapacity) omittedCount += Math.max(0, nightLogs.length - nightShown);
   }
 
   return { missing: [], omittedCount };
