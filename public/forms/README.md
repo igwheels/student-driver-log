@@ -16,6 +16,10 @@ positions on the publisher's page where there are no fields.
 | `az-96-0223.pdf` | Arizona | 96-0223 Driving Practice Certificate (R07/25) | AcroForm, 7 fields (decrypted — see below) |
 | `pa-dl-180c.pdf` | Pennsylvania | DL-180C Parent or Guardian Certification Form (6-25) | AcroForm, 6 fields |
 | `nv-dld130.pdf` | Nevada | DLD130 Beginning Driver Experience Log (1/2023) | flat scan, no fields — two-column day/night log grid |
+| `vt-vn210.pdf` | Vermont | VN-210 Driving Practice Log Sheet (2M 07/2019) | AcroForm, 359 fields (cover page only — see below) |
+| `co-dr2324.pdf` | Colorado | DR 2324 Drive Time Log Sheet (02/11/22) | AcroForm, 73 fields |
+| `ne-dmv0691.pdf` | Nebraska | DMV 06-91 50 Hour Certification (1/08) | flat scan, no fields |
+| `dc-grad-hr40.pdf` | District of Columbia | DMV-GRAD-HR40 Certification of Eligibility for Provisional License (Rev.08/24/09) | flat scan, no fields — single day/night pool |
 
 ## Preparing a new form
 

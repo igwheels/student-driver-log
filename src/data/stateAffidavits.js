@@ -51,9 +51,13 @@ export const STATE_AFFIDAVITS = {
         note: 'Home-training log signed by a parent. CS-1 is the driver-education certificate, not an hours form.' },
   DE: { kind: 'generic', shape: 'summary', verify: true,
         note: 'A DMV/Department of Education certification with no public form number, submitted to the Department of Education.' },
-  DC: { kind: 'specific', form: 'Certification of Eligibility', shape: 'summary',
-        url: 'https://dmv.dc.gov/service/learner-permits-and-provisional-licenses', verify: true,
-        note: 'A 40-hour certification plus a separate 10-hour night certification. Exact form identifiers need confirming.' },
+  DC: { kind: 'specific', form: 'Certification of Eligibility for Provisional License', number: 'DMV-GRAD-HR40', shape: 'per-drive',
+        url: 'https://dmv.dc.gov/service/learner-permits-and-provisional-licenses',
+        // The published form (Rev.08/24/09) certifies 40 hours total with no
+        // separate night-driving column or figure at all — worth confirming
+        // against current DC law before trusting stateRequirements.js's
+        // 10-hour night figure, which this document doesn't corroborate.
+        note: 'The form itself certifies 40 hours total with no separate night-hour column.' },
   FL: { kind: 'specific', form: 'Certification of Driving Experience of a Minor', number: 'HSMV 71143', shape: 'summary',
         url: 'https://www.flhsmv.gov/driver-licenses-id-cards/general-information/required-documents-teen-drivers/',
         notary: 'or-official',
@@ -93,7 +97,10 @@ export const STATE_AFFIDAVITS = {
         url: 'https://www.mass.gov/doc/supervised-driving-log',
         note: 'A published Supervised Driving Log with no form number; the parent certifies on road-test day.',
         conditional: 'Reduced with a driver skills development course.' },
-  MI: { kind: 'specific', form: 'Michigan Supervised Driving Log', shape: 'per-drive',
+  // No distinct numbered form is published — the supervised hours are
+  // certified on the Segment 2 enrollment/completion paperwork itself
+  // rather than through a separate driving log this app could prefill.
+  MI: { kind: 'generic', shape: 'per-drive',
         url: 'https://www.michigan.gov/sos',
         conditional: '30 of the hours must be completed before Segment 2.' },
   MN: { kind: 'specific', form: 'Supervised Driving Log', shape: 'per-drive',
@@ -103,7 +110,9 @@ export const STATE_AFFIDAVITS = {
         note: 'A parent-certified affidavit; no distinct numbered form was located on an official page.' },
   MO: { kind: 'generic', shape: 'summary',
         note: 'Certified by signature on the intermediate licence application; Driver Experience Log Form 4901 is optional.' },
-  MT: { kind: 'specific', form: 'Graduated Driver Licensing Certification', number: '21-1600', shape: 'summary',
+  // Confirmed no specific form is required — the generic affidavit is the
+  // document.
+  MT: { kind: 'generic', shape: 'summary',
         url: 'https://mvdmt.gov/drivers-under-18/' },
   NE: { kind: 'specific', form: '50-Hour Certification', number: 'DMV 06-91', shape: 'summary',
         url: 'https://dmv.nebraska.gov/' },
@@ -144,9 +153,10 @@ export const STATE_AFFIDAVITS = {
         note: 'DL-180TD is the separate parent/guardian consent form; DL-180C is the hours certification.',
         conditional: 'Includes a bad-weather hours component in addition to night hours.' },
   RI: { kind: 'generic', shape: 'summary', note: 'A parent-signed affidavit or log, per RIGL 31-10-6.' },
-  SC: { kind: 'specific', form: 'Certification', number: 'PDLA', shape: 'summary',
-        url: 'https://www.scdmvonline.com/', verify: true,
-        note: 'Log Form DL-008A is optional. Form identifiers need confirming.' },
+  // Log Form DL-008A is optional (confirmed) — the generic affidavit
+  // covers it without asking a parent to track down an optional state form.
+  SC: { kind: 'generic', shape: 'summary',
+        url: 'https://www.scdmvonline.com/' },
   SD: { kind: 'generic', shape: 'per-drive',
         note: 'A parent Supervised Driving Statement affidavit plus a log, per SDCL 32-12.',
         conditional: 'Includes an inclement-weather hours component.' },

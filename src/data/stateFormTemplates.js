@@ -92,6 +92,24 @@ const nvRowYs = [
   346.2, 327.8, 309.2, 290.8, 272.5, 253.8, 235.5, 216.8, 198.5,
 ];
 
+// DC's DMV-GRAD-HR40 log rows, measured the same way as Nevada's: from the
+// printed grid lines in a rendering of page 1 (10 rows, ~14.3-15.4pt each).
+const dcRowYs = [469.5, 455.2, 440.8, 426.2, 410.8, 396.5, 382.2, 367.8, 352.5, 338.2];
+
+// Colorado's DR 2324 pads row numbers inconsistently between its four field
+// types for the same row (Date_02 next to Driving Time_2, Night Driving_02),
+// so each row is listed explicitly by field name rather than generated from
+// one shared suffix — confirmed against the published PDF's own field names,
+// typos and all.
+const coRows = [
+  { date: 'Date', day: 'Driving Time', night: 'Night Driving' },
+  ...range(2, 13).map((n) => ({
+    date: `Date_${String(n).padStart(2, '0')}`,
+    day: `Driving Time_${n}`,
+    night: `Night Driving_${String(n).padStart(2, '0')}`,
+  })),
+];
+
 export const STATE_FORM_TEMPLATES = {
   NY: {
     kind: 'acroform',
@@ -308,6 +326,108 @@ export const STATE_FORM_TEMPLATES = {
       'The parent/guardian certification (relationship, signature) and the notary or Field ' +
       'Services block are left blank for signing in person — this form explicitly rejects ' +
       'photocopied signatures.',
+  },
+
+  CO: {
+    kind: 'acroform-log',
+    asset: 'forms/co-dr2324.pdf',
+    formLabel: 'DR 2324 Drive Time Log Sheet',
+    revision: '02/11/22',
+    fields: [
+      { name: 'Students name', value: fullName },
+      // The printed name and date on the closing certification, same as
+      // every other state's cover page — the signature stays blank.
+      { name: 'Name', value: (ctx) => ctx.parentName },
+      { name: 'Date_2', value: today },
+    ],
+    log: { rows: coRows },
+    totals: {
+      total: 'Grand Total Driving Time',
+      night: 'Grand Total Night Driving Time',
+    },
+    // Each row also has a Comments cell (Comments, Comments_2 ... _13) —
+    // left blank, same reasoning as Maine's Supervising Driver column: the
+    // app has nothing to say there beyond the date and duration it already
+    // fills.
+    leftBlank: ['Permit number'],
+    note:
+      'Every row’s Comments cell is left blank — the app records when and how long a drive was, ' +
+      'not freeform notes about it.',
+  },
+
+  NE: {
+    kind: 'overlay',
+    asset: 'forms/ne-dmv0691.pdf',
+    formLabel: 'DMV 06-91 50 Hour Certification',
+    revision: '1/08',
+    // Measured from the printed blank line on the "I certify that ___"
+    // line — the permit-number blank on the next line is left for the
+    // parent, and the signature/date line below is untouched.
+    overlay: [{ x: 214, y: 558, size: 11, value: fullName }],
+    note:
+      'This is a single certification paragraph, not a driving log — the signature and date line ' +
+      'at the bottom is left blank for the parent to sign.',
+  },
+
+  DC: {
+    kind: 'overlay-log',
+    asset: 'forms/dc-grad-hr40.pdf',
+    formLabel: 'DMV-GRAD-HR40 Certification of Eligibility for Provisional License',
+    revision: 'Rev.08/24/09',
+    // The Applicant Full Name / Learner Permit No. box sits below its own
+    // two-line header, measured the same way as the log rows below it.
+    overlay: [{ page: 0, x: 46, y: 641.7, size: 10, value: fullName }],
+    log: {
+      page: 0,
+      rowYs: dcRowYs,
+      size: 9,
+      // This form's log has no separate night column at all — the DMV
+      // just wants 40 hours total (see the note on the requirement figure
+      // below) — so every drive draws into the same single row pool
+      // regardless of time of day.
+      fields: {
+        date: { x: 46 },
+        time: { x: 352 },
+        hours: { x: 491 },
+      },
+    },
+    // Tutor's Name: the app doesn't record which specific supervising adult
+    // rode along on a given drive, the same gap as every other state's log.
+    leftBlank: ['Learner Permit No.', "Tutor's Name"],
+    note:
+      'The printed document only asks for 40 total hours, with no separate night-time column or ' +
+      'requirement — unlike stateRequirements.js’s current 10-hour night figure for DC, which is ' +
+      'worth re-confirming against current DC law rather than this form alone.',
+  },
+
+  VT: {
+    kind: 'acroform',
+    asset: 'forms/vt-vn210.pdf',
+    formLabel: 'VN-210 Driving Practice Log Sheet',
+    revision: '2M 07/2019',
+    // The name splits into three character-cell fields in printed order
+    // (Last, First, Middle) rather than one combined field — confirmed by
+    // their x-positions in the rendered page, left to right in that order.
+    fields: [
+      { name: 'Name.0', value: (ctx) => ctx.student.lastName },
+      { name: 'Name.1', value: (ctx) => ctx.student.firstName },
+      { name: 'Printed Name of ParentGuardian', value: (ctx) => ctx.parentName },
+    ],
+    // Deliberately not an 'acroform-log': unlike Indiana or Maine, this
+    // log's rows ask for Skills Practiced and Driving Environment — a
+    // qualitative description of each session, not just its date and
+    // length — which the app has never recorded. Filling only Practice
+    // Duration and leaving those two blank would read as a broken row on
+    // every line, not a helpfully partial one, so the whole grid is left
+    // for the parent instead.
+    leftBlank: [
+      'Name.2', 'Date of Birth', 'Learners Permit Number', 'Date Permit Issued', 'ParentGuardian License',
+    ],
+    note:
+      'The driving-practice grid (date, skills practiced, driving environment, duration) is left ' +
+      'entirely blank — it records what was practiced and where, not just how long, which this ' +
+      'app doesn’t track. The conviction and hours-certification questions are also left blank: ' +
+      'they’re the parent’s own attestation under penalty of perjury, not the app’s to answer.',
   },
 };
 
