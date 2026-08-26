@@ -39,7 +39,7 @@ export const STATE_AFFIDAVITS = {
         note: 'ALEA indicates no official numbered hours form, and possibly no log requirement at all.' },
   AK: { kind: 'specific', form: 'Parent/Guardian Consent', number: 'Form 433', shape: 'summary',
         url: 'https://dmv.alaska.gov/media/cuebehop/433.pdf' },
-  AZ: { kind: 'specific', form: 'Supervised Driving Practice Certificate', number: '96-0223', shape: 'summary',
+  AZ: { kind: 'specific', form: 'Driving Practice Certificate', number: '96-0223', shape: 'summary',
         url: 'https://apps.azdot.gov/files/mvd/mvd-forms-lib/96-0223.pdf' },
   AR: { kind: 'none' },
   CA: { kind: 'generic', shape: 'summary',
@@ -54,13 +54,18 @@ export const STATE_AFFIDAVITS = {
   DC: { kind: 'specific', form: 'Certification of Eligibility', shape: 'summary',
         url: 'https://dmv.dc.gov/service/learner-permits-and-provisional-licenses', verify: true,
         note: 'A 40-hour certification plus a separate 10-hour night certification. Exact form identifiers need confirming.' },
-  FL: { kind: 'specific', form: 'Certification of Minor Driving Experience', number: 'HSMV 71143', shape: 'summary',
+  FL: { kind: 'specific', form: 'Certification of Driving Experience of a Minor', number: 'HSMV 71143', shape: 'summary',
         url: 'https://www.flhsmv.gov/driver-licenses-id-cards/general-information/required-documents-teen-drivers/',
         notary: 'or-official',
         notaryNote: 'Must be signed in front of a driver license examiner, or notarized if the parent or guardian will not be present.' },
-  GA: { kind: 'specific', form: 'Driving Experience Affidavit', number: 'DDS-7', shape: 'summary',
+  // DDS-7 is not published for the public to fill in advance — Georgia
+  // hands it out and completes it in person at a DDS office — so there is
+  // no PDF this app could ever prefill. The generic affidavit is the
+  // closest a parent can prepare ahead of that visit.
+  GA: { kind: 'generic', shape: 'summary',
         url: 'https://dds.georgia.gov/teen-drivers',
-        notaryNote: 'Completed at a DDS office.' },
+        note: 'Georgia also requires DDS-7, completed and notarized in person at a DDS office; ' +
+          'this affidavit is something to bring, not a substitute for it.' },
   HI: { kind: 'generic', shape: 'per-drive', notary: 'required',
         url: 'https://hidot.hawaii.gov/highways/programs/graduated-drivers-licensing/',
         notaryNote: 'A notarized supervised-driving-log affidavit, per HRS 286-102.6.' },
@@ -102,7 +107,7 @@ export const STATE_AFFIDAVITS = {
         url: 'https://mvdmt.gov/drivers-under-18/' },
   NE: { kind: 'specific', form: '50-Hour Certification', number: 'DMV 06-91', shape: 'summary',
         url: 'https://dmv.nebraska.gov/' },
-  NV: { kind: 'specific', form: 'Beginning Driver Experience Log', number: 'DLD-130', shape: 'per-drive',
+  NV: { kind: 'specific', form: 'Beginning Driver Experience Log', number: 'DLD130', shape: 'per-drive',
         url: 'https://dmv.nv.gov/nvdlteens.htm',
         conditional: 'Rises to 100 hours where driver education is unavailable.' },
   NH: { kind: 'specific', form: "Driver's Out-of-Class Log Sheet", number: 'DSMV 509', shape: 'per-drive',
@@ -126,7 +131,7 @@ export const STATE_AFFIDAVITS = {
         notaryNote: 'Ohio always requires this affidavit to be sworn before a notary.',
         note: 'Updated in 2025 to require a detailed log of each session, not only a signed total.' },
   OK: { kind: 'specific', form: 'Affidavit of Driver Training', number: '50HD', shape: 'summary',
-        url: 'https://oklahoma.gov/', verify: true,
+        url: 'https://oklahoma.gov/',
         conditional: 'Rises to 55 hours on the parent-taught pathway.' },
   OR: { kind: 'generic', shape: 'per-drive',
         url: 'https://www.oregon.gov/odot/dmv/pages/teen/index.aspx',

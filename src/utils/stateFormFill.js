@@ -12,6 +12,7 @@
  */
 import { stateFormTemplateFor } from '../data/stateFormTemplates';
 import { downloadFileName } from './fileName';
+import { localOffsetMinutes, toZonedDateInput } from './driveTime';
 
 // pdf-lib is around half a megabyte and only needed when someone actually
 // asks for a state form, so it is fetched on demand rather than shipped to
@@ -57,13 +58,72 @@ function fillAcroForm(pdf, template, ctx) {
   return missing;
 }
 
+/** A drive's date, in the zone it was logged in, as the form's own mm/dd/yyyy. */
+function formatLogDate(log) {
+  const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+  const [year, month, day] = toZonedDateInput(new Date(log.startTime), offset).split('-');
+  return `${month}/${day}/${year}`;
+}
+
+/** Minutes as decimal hours, trimmed to at most two places. */
+function formatLogHours(minutes) {
+  return String(Math.round(((minutes ?? 0) / 60) * 100) / 100);
+}
+
+// Maps the student's actual logged drives onto a repeating date/day-hours/
+// night-hours grid. Each drive counts entirely as day or night, matching how
+// the app itself categorises a drive (see guessTimeOfDay in LogDrive.jsx) —
+// there is no per-minute day/night split to draw on.
+//
+// A state's own paper form has a fixed number of rows. When there are more
+// drives than rows, the most recent ones win: they're the ones most likely
+// still relevant to an examiner, and the form's own instructions already
+// anticipate overflow by telling the parent to attach a duplicate log, which
+// a single PDF template can't do on its own — the omitted count is returned
+// so the caller can point the parent at the full CSV export instead.
+function fillLogRows(pdf, template, ctx, logs) {
+  const form = pdf.getForm();
+  const missing = [];
+  const trySet = (name, value) => {
+    if (value === '' || value == null) return;
+    try {
+      form.getTextField(name).setText(String(value));
+    } catch {
+      missing.push(name);
+    }
+  };
+
+  const sorted = [...logs].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  const capacity = template.log.rowSuffixes.length;
+  const rows = sorted.length > capacity ? sorted.slice(sorted.length - capacity) : sorted;
+  const omittedCount = Math.max(0, sorted.length - capacity);
+
+  rows.forEach((log, i) => {
+    const suffix = template.log.rowSuffixes[i];
+    trySet(`${template.log.datePrefix}${suffix}`, formatLogDate(log));
+    const hours = formatLogHours(log.durationMinutes);
+    if (log.timeOfDay === 'night') {
+      trySet(`${template.log.nightPrefix}${suffix}`, hours);
+    } else {
+      trySet(`${template.log.dayPrefix}${suffix}`, hours);
+    }
+  });
+
+  if (template.totals) {
+    trySet(template.totals.total, formatLogHours(ctx.totals?.totalMinutes));
+    trySet(template.totals.night, formatLogHours(ctx.totals?.nightMinutes));
+  }
+
+  return { missing, omittedCount };
+}
+
 async function drawOverlay(pdf, template, ctx, { StandardFonts, rgb }) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const page = pdf.getPages()[0];
+  const pages = pdf.getPages();
   for (const item of template.overlay) {
     const value = item.value(ctx);
     if (!value) continue;
-    page.drawText(String(value), {
+    pages[item.page ?? 0].drawText(String(value), {
       x: item.x,
       y: item.y,
       size: item.size ?? 11,
@@ -74,31 +134,119 @@ async function drawOverlay(pdf, template, ctx, { StandardFonts, rgb }) {
   return [];
 }
 
+/** A drive's start time, in the zone it was logged in, as 'h:mm am/pm' (no leading zero, no military time). */
+function formatClockTime(instant, offsetMinutes) {
+  const d = new Date(instant.getTime() + offsetMinutes * 60000);
+  let hours = d.getUTCHours();
+  const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+  const meridiem = hours < 12 ? 'am' : 'pm';
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${meridiem}`;
+}
+
+/** A drive's date, in the zone it was logged in, as 'MM/DD/YY'. */
+function formatShortDate(log) {
+  const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+  const [year, month, day] = toZonedDateInput(new Date(log.startTime), offset).split('-');
+  return `${month}/${day}/${year.slice(2)}`;
+}
+
+// Some states' own log is a flat scan with two separate day/night columns
+// rather than one shared date column (Nevada's DLD130) — each column has its
+// own row pool, so a student's day drives and night drives are placed and
+// overflow independently, most recent first in each, same reasoning as
+// fillLogRows above.
+async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const page = pdf.getPages()[template.log.page ?? 0];
+  const rowYs = template.log.rowYs;
+  const size = template.log.size ?? 9;
+
+  const draw = (text, x, y) => {
+    if (!text) return;
+    page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
+  };
+
+  const place = (log, i, columns) => {
+    const y = rowYs[i];
+    const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+    draw(formatShortDate(log), columns.date.x, y);
+    draw(formatClockTime(new Date(log.startTime), offset), columns.begin.x, y);
+    draw(formatClockTime(new Date(log.endTime), offset), columns.end.x, y);
+    draw(String(Math.round(log.durationMinutes ?? 0)), columns.minutes.x, y);
+  };
+
+  const byTimeAsc = (a, b) => new Date(a.startTime) - new Date(b.startTime);
+  const dayLogs = logs.filter((l) => l.timeOfDay !== 'night').sort(byTimeAsc);
+  const nightLogs = logs.filter((l) => l.timeOfDay === 'night').sort(byTimeAsc);
+  const capacity = rowYs.length;
+
+  const dayRows = dayLogs.length > capacity ? dayLogs.slice(dayLogs.length - capacity) : dayLogs;
+  const nightRows = nightLogs.length > capacity ? nightLogs.slice(nightLogs.length - capacity) : nightLogs;
+  const omittedCount =
+    Math.max(0, dayLogs.length - capacity) + Math.max(0, nightLogs.length - capacity);
+
+  dayRows.forEach((log, i) => place(log, i, template.log.columns.day));
+  nightRows.forEach((log, i) => place(log, i, template.log.columns.night));
+
+  return { missing: [], omittedCount };
+}
+
 /**
  * Produces the filled form as bytes. Separated from the download so it can be
  * exercised without a browser.
  */
-export async function buildFilledStateForm({ student, parentName, today = new Date() }) {
+export async function buildFilledStateForm({
+  student,
+  parentName,
+  today = new Date(),
+  logs = [],
+  totals,
+}) {
   const template = stateFormTemplateFor(student.state);
   if (!template) throw new Error(`No official form is available for ${student.state}.`);
 
-  const ctx = { student, parentName: parentName || '', today };
+  const ctx = { student, parentName: parentName || '', today, totals };
   const [{ PDFDocument, StandardFonts, rgb }, bytes] = await Promise.all([
     loadPdfLib(),
     loadTemplateBytes(template.asset),
   ]);
   const pdf = await PDFDocument.load(bytes);
 
-  const missing =
-    template.kind === 'acroform'
-      ? fillAcroForm(pdf, template, ctx)
-      : await drawOverlay(pdf, template, ctx, { StandardFonts, rgb });
+  let missing = [];
+  let omittedCount = 0;
+  if (template.kind === 'overlay' || template.kind === 'overlay-log') {
+    missing = await drawOverlay(pdf, template, ctx, { StandardFonts, rgb });
+    if (template.kind === 'overlay-log') {
+      const rows = await drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs);
+      omittedCount = rows.omittedCount;
+    }
+  } else {
+    missing = fillAcroForm(pdf, template, ctx);
+    if (template.kind === 'acroform-log') {
+      const rows = fillLogRows(pdf, template, ctx, logs);
+      missing = [...missing, ...rows.missing];
+      omittedCount = rows.omittedCount;
+    }
+  }
 
-  return { bytes: await pdf.save(), missing, template };
+  return { bytes: await pdf.save(), missing, omittedCount, template };
 }
 
-export async function exportFilledStateForm({ student, parentName, today = new Date() }) {
-  const { bytes, template } = await buildFilledStateForm({ student, parentName, today });
+export async function exportFilledStateForm({
+  student,
+  parentName,
+  today = new Date(),
+  logs = [],
+  totals,
+}) {
+  const { bytes, template, omittedCount } = await buildFilledStateForm({
+    student,
+    parentName,
+    today,
+    logs,
+    totals,
+  });
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -111,5 +259,5 @@ export async function exportFilledStateForm({ student, parentName, today = new D
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-  return template;
+  return { template, omittedCount };
 }
