@@ -20,6 +20,16 @@ positions on the publisher's page where there are no fields.
 | `co-dr2324.pdf` | Colorado | DR 2324 Drive Time Log Sheet (02/11/22) | AcroForm, 73 fields |
 | `ne-dmv0691.pdf` | Nebraska | DMV 06-91 50 Hour Certification (1/08) | flat scan, no fields |
 | `dc-grad-hr40.pdf` | District of Columbia | DMV-GRAD-HR40 Certification of Eligibility for Provisional License (Rev.08/24/09) | flat scan, no fields — single day/night pool |
+| `il-dsdx152.pdf` | Illinois | DSD X152 Practice Driving Log (152.4, March 2026) | AcroForm, 577 fields (64 usable rows) |
+| `ks-deib01.pdf` | Kansas | DE-IB01 Teen Driving Experience Log (6/99) | flat scan, no fields |
+| `nc-dl4a.pdf` | North Carolina | DL-4A Driving Log to Advance to N.C. Level 2 Limited Provisional Driver License (09/2011) | AcroForm, ~370 fields (56 usable rows) |
+| `nh-dsmv509.pdf` | New Hampshire | DSMV 509 Certification of Additional Supervised Driving (Rev. 6/23) | AcroForm (decrypted — see below) — cumulative day/night totals, 52 usable rows |
+| `ky-practicelog.pdf` | Kentucky | Practice Driving Log (as published; unnumbered) | flat scan, no fields — separate day/night pages |
+| `tn-sf1256.pdf` | Tennessee | SF-1256 Certification of 50 Hours Behind the Wheel Driving Experience (02/13) | flat scan, no fields |
+| `wy-fsgdl01.pdf` | Wyoming | FSGDL-01 Behind-the-Wheel Driving Certification (20190620) | AcroForm, 8 fields |
+| `wv-dmv10gdl.pdf` | West Virginia | DMV-10-GDL 50-Hour Certification Log for Driver's License Applicants Under Age 18 (REV 09/14) | flat scan, no fields — 22 usable rows across 2 pages |
+| `wa-dle520003.pdf` | Washington | DLE-520-003 Parental Authorization Affidavit (R4/25) | AcroForm, 19 fields — notarized |
+| `ak-form433.pdf` | Alaska | Form 433 Parent/Guardian Consent for a Minor (Rev. 08/28/2018) | AcroForm, 13 fields — notarized if parent not present |
 
 ## Preparing a new form
 
