@@ -1129,12 +1129,40 @@ export const STATE_FORM_TEMPLATES = {
       page: 0,
       rowYs: mdRowYs,
       size: 8,
-      fields: {
-        date: { x: 31 },
-        start: { x: 86 },
-        end: { x: 235 },
-        hours: { x: 291 },
-        skills: { x: 141, width: 84 },
+      // The booklet alternates a margin banner between the left edge
+      // (pages 0, 2 — printed pages 22, 24) and the right edge (pages 1, 3
+      // — printed 23, 25), so the grid itself sits about 13pt further
+      // right on the left-banner pages. Measured separately per page
+      // rather than assumed uniform.
+      pageFields: {
+        0: {
+          date: { x: 45 },
+          start: { x: 99 },
+          end: { x: 248 },
+          hours: { x: 304 },
+          skills: { x: 155, width: 84 },
+        },
+        1: {
+          date: { x: 31 },
+          start: { x: 86 },
+          end: { x: 235 },
+          hours: { x: 291 },
+          skills: { x: 141, width: 84 },
+        },
+        2: {
+          date: { x: 45 },
+          start: { x: 99 },
+          end: { x: 248 },
+          hours: { x: 304 },
+          skills: { x: 155, width: 84 },
+        },
+        3: {
+          date: { x: 31 },
+          start: { x: 86 },
+          end: { x: 235 },
+          hours: { x: 291 },
+          skills: { x: 141, width: 84 },
+        },
       },
     },
     // The certification page (5th page of the booklet) branches on the
