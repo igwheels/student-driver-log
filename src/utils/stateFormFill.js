@@ -93,19 +93,30 @@ function fillLogRows(pdf, template, ctx, logs) {
     }
   };
 
+  // Most states name their rows with one consistent prefix+suffix, but a
+  // few (Colorado's DR 2324) pad row numbers inconsistently between field
+  // types — Date_02 alongside Driving Time_2 for the same row — so an
+  // explicit per-row list of field names (`log.rows`) is supported as an
+  // alternative to the shared prefix+suffix pattern.
+  const rowFieldNames = template.log.rows ?? template.log.rowSuffixes.map((suffix) => ({
+    date: `${template.log.datePrefix}${suffix}`,
+    day: `${template.log.dayPrefix}${suffix}`,
+    night: `${template.log.nightPrefix}${suffix}`,
+  }));
+
   const sorted = [...logs].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-  const capacity = template.log.rowSuffixes.length;
+  const capacity = rowFieldNames.length;
   const rows = sorted.length > capacity ? sorted.slice(sorted.length - capacity) : sorted;
   const omittedCount = Math.max(0, sorted.length - capacity);
 
   rows.forEach((log, i) => {
-    const suffix = template.log.rowSuffixes[i];
-    trySet(`${template.log.datePrefix}${suffix}`, formatLogDate(log));
+    const names = rowFieldNames[i];
+    trySet(names.date, formatLogDate(log));
     const hours = formatLogHours(log.durationMinutes);
     if (log.timeOfDay === 'night') {
-      trySet(`${template.log.nightPrefix}${suffix}`, hours);
+      trySet(names.night, hours);
     } else {
-      trySet(`${template.log.dayPrefix}${suffix}`, hours);
+      trySet(names.day, hours);
     }
   });
 
@@ -151,11 +162,22 @@ function formatShortDate(log) {
   return `${month}/${day}/${year.slice(2)}`;
 }
 
+/** Minutes as 'Xh Ym', matching the app's own duration display elsewhere. */
+function formatHoursWords(minutes) {
+  const m = Math.round(minutes ?? 0);
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
 // Some states' own log is a flat scan with two separate day/night columns
 // rather than one shared date column (Nevada's DLD130) — each column has its
 // own row pool, so a student's day drives and night drives are placed and
 // overflow independently, most recent first in each, same reasoning as
 // fillLogRows above.
+//
+// Others (DC's DMV-GRAD-HR40) don't split day and night at all — one shared
+// pool of rows, no per-minute distinction the form asks for — so `columns`
+// (day/night) and `fields` (one pool) are two different shapes of the same
+// 'overlay-log' kind, told apart by which one the template sets.
 async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const page = pdf.getPages()[template.log.page ?? 0];
@@ -167,6 +189,31 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
     page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
   };
 
+  const byTimeAsc = (a, b) => new Date(a.startTime) - new Date(b.startTime);
+  const capacity = rowYs.length;
+
+  if (template.log.fields) {
+    const sorted = [...logs].sort(byTimeAsc);
+    const rows = sorted.length > capacity ? sorted.slice(sorted.length - capacity) : sorted;
+    const omittedCount = Math.max(0, sorted.length - capacity);
+    const fields = template.log.fields;
+
+    rows.forEach((log, i) => {
+      const y = rowYs[i];
+      const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+      if (fields.date) draw(formatShortDate(log), fields.date.x, y);
+      if (fields.time) {
+        const range =
+          `${formatClockTime(new Date(log.startTime), offset)} - ` +
+          formatClockTime(new Date(log.endTime), offset);
+        draw(range, fields.time.x, y);
+      }
+      if (fields.hours) draw(formatHoursWords(log.durationMinutes), fields.hours.x, y);
+    });
+
+    return { missing: [], omittedCount };
+  }
+
   const place = (log, i, columns) => {
     const y = rowYs[i];
     const offset = log.startOffsetMinutes ?? localOffsetMinutes();
@@ -176,10 +223,8 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
     draw(String(Math.round(log.durationMinutes ?? 0)), columns.minutes.x, y);
   };
 
-  const byTimeAsc = (a, b) => new Date(a.startTime) - new Date(b.startTime);
   const dayLogs = logs.filter((l) => l.timeOfDay !== 'night').sort(byTimeAsc);
   const nightLogs = logs.filter((l) => l.timeOfDay === 'night').sort(byTimeAsc);
-  const capacity = rowYs.length;
 
   const dayRows = dayLogs.length > capacity ? dayLogs.slice(dayLogs.length - capacity) : dayLogs;
   const nightRows = nightLogs.length > capacity ? nightLogs.slice(nightLogs.length - capacity) : nightLogs;
