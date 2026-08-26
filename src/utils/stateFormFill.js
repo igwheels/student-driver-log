@@ -360,7 +360,7 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
     }
   };
 
-  if (template.log.fields) {
+  if (template.log.fields || template.log.pageFields) {
     const sorted = [...logs].sort(byTimeAsc);
     const rows = sorted.length > capacity ? sorted.slice(sorted.length - capacity) : sorted;
     const omittedCount = Math.max(0, sorted.length - capacity);
