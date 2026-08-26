@@ -32,7 +32,20 @@
  *        separate side-by-side columns (`log.columns.day` / `.night`) with
  *        independent row pools rather than one shared date column — each
  *        column overflows on its own, same most-recent-first rule as
- *        'acroform-log'.
+ *        'acroform-log'. Also covers two other row layouts: `log.tracks`
+ *        (Kentucky) puts day and night rows on entirely separate pages, and
+ *        `log.blocks` (Minnesota) repeats the same one-pool row shape in
+ *        two side-by-side blocks on one page rather than splitting by
+ *        day/night at all — the left block fills before the right.
+ *
+ *  kind: 'overlay-category-log' — Texas's DES150N: not organized by date at
+ *        all, but by a fixed set of skill categories (`log.categories`,
+ *        keyed the same as src/data/skillCategories.js), each with its own
+ *        fixed number of day rows and night rows and the hours for every
+ *        row already pre-printed by the state. Only date and time are
+ *        drawn, one drive per row, pulled from whichever drives the parent
+ *        tagged with that category — most recent first, same overflow rule
+ *        as every other log shape here.
  *
  * The app fills only what it actually holds. Every other blank is left for
  * the parent, and signatures are always left blank — a signature is the one
@@ -52,6 +65,8 @@
  * Re-check the form against the state's current published revision first:
  * a superseded revision is worse than no template at all.
  */
+
+import { SKILL_CATEGORIES } from './skillCategories';
 
 const fullName = (ctx) => `${ctx.student.firstName} ${ctx.student.lastName}`.trim();
 const lastFirst = (ctx) => `${ctx.student.lastName}, ${ctx.student.firstName}`.trim();
@@ -111,11 +126,12 @@ const dcRowYs = [469.5, 455.2, 440.8, 426.2, 410.8, 396.5, 382.2, 367.8, 352.5, 
 // one shared suffix — confirmed against the published PDF's own field names,
 // typos and all.
 const coRows = [
-  { date: 'Date', day: 'Driving Time', night: 'Night Driving' },
+  { date: 'Date', day: 'Driving Time', night: 'Night Driving', skill: 'Comments' },
   ...range(2, 13).map((n) => ({
     date: `Date_${String(n).padStart(2, '0')}`,
     day: `Driving Time_${n}`,
     night: `Night Driving_${String(n).padStart(2, '0')}`,
+    skill: `Comments_${n}`,
   })),
 ];
 
@@ -333,7 +349,13 @@ const nhRows = [
   { date: 'DateRow40', start: 'Time AMPM Start   EndRow40', end: 'Time AMPM Start   EndRow40_2', day: 'Cumulative Hours Daytime  NighttimeRow40', night: 'Cumulative Hours Daytime  NighttimeRow40_2' },
   { date: 'DateRow41', start: 'Time AMPM Start   EndRow41', end: 'Time AMPM Start   EndRow41_2', day: 'Cumulative Hours Daytime  NighttimeRow41', night: 'Cumulative Hours Daytime  NighttimeRow41_2' },
   { date: 'DateRow42', start: 'Time AMPM Start   EndRow42', end: 'Time AMPM Start   EndRow42_2', day: 'Cumulative Hours Daytime  NighttimeRow42', night: 'Cumulative Hours Daytime  NighttimeRow42_2' },
-];
+].map((row) => ({
+  ...row,
+  // The published field is named after its own row suffix the same way as
+  // every other column here — "DateRow1" pairs with "Skill Practiced Ex
+  // Highway Parking etcRow1", "DateRow1_2" with "...etcRow1_2", and so on.
+  skill: `Skill Practiced Ex Highway Parking etc${row.date.replace('Date', '')}`,
+}));
 
 // Kentucky's Practice Driving Log rows, measured from the printed grid
 // lines in a rendering of each page: 32 day rows on page 1, 33 night rows
@@ -364,6 +386,50 @@ const wvRowYs = [
   { page: 1, y: 626 }, { page: 1, y: 590 }, { page: 1, y: 554.5 }, { page: 1, y: 518.5 },
   { page: 1, y: 483 }, { page: 1, y: 447 }, { page: 1, y: 411.5 }, { page: 1, y: 375.5 },
   { page: 1, y: 340 }, { page: 1, y: 304 }, { page: 1, y: 268.5 }, { page: 1, y: 232.5 },
+];
+
+// Texas's DES150N is organized around the ten skill categories from TDLR's
+// Behind-the-Wheel Instruction Guide rather than a running date grid — each
+// category has a fixed number of day rows and night rows, and the hours for
+// every row are already pre-printed by the state (e.g. Backing always gets
+// one 30-minute day row and one 30-minute night row; the total across every
+// row is fixed at 20 day hours + 10 night hours regardless of what's
+// filled in). Row baselines below were measured against each row's own
+// pre-printed "1 hour"/"30 minutes" text in the Daytime/Nighttime Hours
+// columns — reliable where the grid's own rule lines were not, since two of
+// its categories (City Driving, Expressway/Freeway Driving) mix a taller
+// header-like row into otherwise-uniform spacing. City Driving and
+// Expressway/Freeway Driving each have one more row that asks for both a
+// day amount and a night amount at once — there's no single drive that is
+// both, so those two rows are simply never referenced here and stay blank
+// for the parent.
+// One entry per SKILL_CATEGORIES entry, in the same order — the TX form
+// lists its ten categories in exactly that order top to bottom.
+const TX_ROWS_BY_CATEGORY = [
+  { day: [651.8], night: [635.7] },
+  { day: [618.2, 604.2], night: [589.3] },
+  { day: [571.8], night: [557.7] },
+  { day: [540.2, 526.2, 511.3], night: [496.4] },
+  { day: [478.8, 464.9], night: [449.9] },
+  { day: [432.4], night: [418.4] },
+  { day: [400.8], night: [386.9] },
+  { day: [369.3, 355.3, 340.4], night: [325.5] },
+  { day: [308.0, 293.9, 279.0], night: [249.2] },
+  { day: [231.6, 217.6, 202.7], night: [172.8] },
+];
+const txCategoryRows = SKILL_CATEGORIES.map((cat, i) => ({
+  key: cat.key,
+  ...TX_ROWS_BY_CATEGORY[i],
+}));
+
+// Minnesota's Supervised Driving Log repeats the same row shape in two
+// side-by-side blocks on one page instead of running further down it — the
+// left block fills first, then the right. Row baselines are shared between
+// both blocks; only the column x's differ.
+const mnRowYs = [
+  537.7, 521.0, 504.3, 488.0, 471.3, 454.7, 438.0, 421.3, 404.7, 388.0,
+  371.3, 354.7, 338.0, 321.3, 304.7, 288.0, 271.3, 254.7, 238.0, 221.3,
+  204.7, 188.0, 171.3, 155.0, 137.7,
 ];
 
 export const STATE_FORM_TEMPLATES = {
@@ -601,14 +667,10 @@ export const STATE_FORM_TEMPLATES = {
       total: 'Grand Total Driving Time',
       night: 'Grand Total Night Driving Time',
     },
-    // Each row also has a Comments cell (Comments, Comments_2 ... _13) —
-    // left blank, same reasoning as Maine's Supervising Driver column: the
-    // app has nothing to say there beyond the date and duration it already
-    // fills.
     leftBlank: ['Permit number'],
     note:
-      'Every row’s Comments cell is left blank — the app records when and how long a drive was, ' +
-      'not freeform notes about it.',
+      'Every row’s Comments cell prints whichever skill categories the parent tagged that drive ' +
+      'with, if any — otherwise it’s left blank.',
   },
 
   NE: {
@@ -770,9 +832,9 @@ export const STATE_FORM_TEMPLATES = {
     },
     leftBlank: ['Telephone', 'Address'],
     note:
-      'Every row’s Skill Practiced and Parent/Guardian Initials cell is left blank, and both ' +
-      'pages’ per-page subtotals are left for the parent to total by hand — only the grand total ' +
-      'is filled.',
+      'Every row’s Skill Practiced cell prints whichever categories the parent tagged that drive ' +
+      'with, if any. Parent/Guardian Initials is left blank, and both pages’ per-page subtotals ' +
+      'are left for the parent to total by hand — only the grand total is filled.',
   },
 
   KY: {
@@ -918,6 +980,71 @@ export const STATE_FORM_TEMPLATES = {
     note:
       'This is a consent-to-apply form, not a driving log — it must be signed in front of a notary ' +
       'or DMV representative if the parent isn’t present in person, per the form’s own instructions.',
+  },
+
+  TX: {
+    kind: 'overlay-category-log',
+    asset: 'forms/tx-des150n.pdf',
+    formLabel: 'TDLR DES150N Driver Education 30 Hour Behind the Wheel Log',
+    revision: 'rev December 2024',
+    // Measured from the blank line right after "Student's Name:". DL # is
+    // left blank — the app doesn't collect a permit number.
+    overlay: [{ x: 115, y: 692, size: 10, value: fullName }],
+    log: {
+      page: 0,
+      dateX: 202,
+      timeX: 260,
+      categories: txCategoryRows,
+    },
+    note:
+      'Only the Date and Time cells are filled — the Daytime/Nighttime Hours columns are already ' +
+      'pre-printed by the state and never touched. Every drive must be tagged with at least one ' +
+      'skill category for this state, since the log is organized by category rather than by date; ' +
+      'a category with more tagged drives than it has rows keeps only the most recent ones. The ' +
+      'Adult’s Signature and DL # column, and the certification signature/date at the bottom, ' +
+      'are left for the parent. Texas counts at most 2 hours of driving per calendar day (1 hour ' +
+      'day, 1 hour night) toward the 30-hour requirement regardless of how much was actually ' +
+      'driven — the app applies that same cap wherever it shows this student’s progress, not ' +
+      'just on this form.',
+  },
+
+  MN: {
+    kind: 'overlay-log',
+    asset: 'forms/mn-supervised-log.pdf',
+    formLabel: 'Supervised Driving Log',
+    revision: 'Rev. 06/2021',
+    // Measured from the blank line right after "Student's Name". The
+    // example row's own "8/15/14 / 90 / 30 / 120 / parking; turns" is
+    // printed on the page itself, not a fillable field — the first usable
+    // row is the blank one beneath it.
+    overlay: [
+      { page: 0, x: 180, y: 761, size: 10, value: fullName },
+      // The single "TOTAL DRIVING HOURS" box. Each block's own DAY/NIGHT/
+      // TOTAL MINUTES subtotals are left for the parent to add up by
+      // hand — the same reasoning as New Hampshire's per-page subtotals.
+      { page: 0, x: 525, y: 60, size: 11, value: totalHours },
+    ],
+    log: {
+      page: 0,
+      rowYs: mnRowYs,
+      size: 9,
+      blocks: [
+        {
+          date: { x: 26 }, day: { x: 69 }, night: { x: 111 }, total: { x: 153 },
+          skills: { x: 194 }, unit: 'minutes',
+        },
+        {
+          date: { x: 306.7 }, day: { x: 350 }, night: { x: 391.7 }, total: { x: 433.3 },
+          skills: { x: 475.3 }, unit: 'minutes',
+        },
+      ],
+    },
+    note:
+      'Day/Night/Total Minutes are whole minutes, matching the form’s own header. Skills ' +
+      'Practiced prints whichever categories the parent tagged the drive with, same as the DPS ' +
+      'example row. Only the grand Total Driving Hours box is filled — each block’s own DAY/' +
+      'NIGHT/TOTAL MINUTES subtotals and the Signature of Primary Driving Supervisor line are left ' +
+      'for the parent.',
   },
 };
 

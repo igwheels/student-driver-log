@@ -30,6 +30,8 @@ positions on the publisher's page where there are no fields.
 | `wv-dmv10gdl.pdf` | West Virginia | DMV-10-GDL 50-Hour Certification Log for Driver's License Applicants Under Age 18 (REV 09/14) | flat scan, no fields — 22 usable rows across 2 pages |
 | `wa-dle520003.pdf` | Washington | DLE-520-003 Parental Authorization Affidavit (R4/25) | AcroForm, 19 fields — notarized |
 | `ak-form433.pdf` | Alaska | Form 433 Parent/Guardian Consent for a Minor (Rev. 08/28/2018) | AcroForm, 13 fields — notarized if parent not present |
+| `tx-des150n.pdf` | Texas | TDLR DES150N Driver Education 30 Hour Behind the Wheel Log (rev December 2024) | flat scan, no fields — organized by skill category, not by date |
+| `mn-supervised-log.pdf` | Minnesota | Supervised Driving Log (Rev. 06/2021) | flat scan, no fields — two side-by-side row blocks per page |
 
 ## Preparing a new form
 

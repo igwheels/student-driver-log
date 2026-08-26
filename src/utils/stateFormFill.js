@@ -13,6 +13,7 @@
 import { stateFormTemplateFor } from '../data/stateFormTemplates';
 import { downloadFileName } from './fileName';
 import { localOffsetMinutes, toZonedDateInput } from './driveTime';
+import { formatSkills } from '../data/skillCategories';
 
 // pdf-lib is around half a megabyte and only needed when someone actually
 // asks for a state form, so it is fetched on demand rather than shipped to
@@ -129,6 +130,10 @@ function fillLogRows(pdf, template, ctx, logs) {
   rows.forEach(({ log, cumulativeDay: day, cumulativeNight: night }, i) => {
     const names = rowFieldNames[i];
     trySet(names.date, formatLogDate(log));
+    // Colorado's Comments cell and New Hampshire's Skill Practiced cell:
+    // whichever categories the parent tagged this drive with, joined the
+    // same way MN's own example row does ("parking; turns").
+    if (names.skill) trySet(names.skill, formatSkills(log.skills));
     if (names.start || names.end) {
       const offset = log.startOffsetMinutes ?? localOffsetMinutes();
       if (names.start) trySet(names.start, formatClockTime(new Date(log.startTime), offset));
@@ -293,6 +298,41 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
 
   const capacity = rowYs.length;
 
+  // Shared by the single-pool 'fields' shape and the two-block 'blocks'
+  // shape below: draws one drive into whichever date/time/hours/day/night/
+  // total/skills cells a row config names. `fields.unit` picks the
+  // day/night/total number format — Kansas and D.C. print decimal hours,
+  // Minnesota prints whole minutes.
+  const placeInFields = (drawRow, fields, log) => {
+    const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+    if (fields.date) drawRow(formatShortDate(log), fields.date.x);
+    if (fields.time) {
+      const range =
+        `${formatClockTime(new Date(log.startTime), offset)} - ` +
+        formatClockTime(new Date(log.endTime), offset);
+      drawRow(range, fields.time.x);
+    }
+    if (fields.hours) drawRow(formatHoursWords(log.durationMinutes), fields.hours.x);
+    // A single pool of rows, but each has its own day-hours/night-hours
+    // cells (Kansas's DE-IB01) rather than one duration column (DC's
+    // GRAD-HR40) — a drive counts entirely as one or the other, same as
+    // every acroform-log, so only one of the two is ever filled, and
+    // Total mirrors whichever one that was.
+    if (fields.day || fields.night) {
+      const amount =
+        fields.unit === 'minutes'
+          ? String(Math.round(log.durationMinutes ?? 0))
+          : formatLogHours(log.durationMinutes);
+      if (log.timeOfDay === 'night') {
+        if (fields.night) drawRow(amount, fields.night.x);
+      } else if (fields.day) {
+        drawRow(amount, fields.day.x);
+      }
+      if (fields.total) drawRow(amount, fields.total.x);
+    }
+    if (fields.skills) drawRow(formatSkills(log.skills), fields.skills.x);
+  };
+
   if (template.log.fields) {
     const sorted = [...logs].sort(byTimeAsc);
     const rows = sorted.length > capacity ? sorted.slice(sorted.length - capacity) : sorted;
@@ -315,29 +355,34 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
         if (!text) return;
         rowPage.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
       };
-      const offset = log.startOffsetMinutes ?? localOffsetMinutes();
-      if (fields.date) drawRow(formatShortDate(log), fields.date.x);
-      if (fields.time) {
-        const range =
-          `${formatClockTime(new Date(log.startTime), offset)} - ` +
-          formatClockTime(new Date(log.endTime), offset);
-        drawRow(range, fields.time.x);
-      }
-      if (fields.hours) drawRow(formatHoursWords(log.durationMinutes), fields.hours.x);
-      // A single pool of rows, but each has its own day-hours/night-hours
-      // cells (Kansas's DE-IB01) rather than one duration column (DC's
-      // GRAD-HR40) — a drive counts entirely as one or the other, same as
-      // every acroform-log, so only one of the two is ever filled, and
-      // Total mirrors whichever one that was.
-      if (fields.day || fields.night) {
-        const hours = formatLogHours(log.durationMinutes);
-        if (log.timeOfDay === 'night') {
-          if (fields.night) drawRow(hours, fields.night.x);
-        } else if (fields.day) {
-          drawRow(hours, fields.day.x);
-        }
-        if (fields.total) drawRow(hours, fields.total.x);
-      }
+      placeInFields(drawRow, fields, log);
+    });
+
+    return { missing: [], omittedCount };
+  }
+
+  // Minnesota's Supervised Driving Log doesn't add more rows by running
+  // further down the page — it repeats the same row shape in a second,
+  // side-by-side block once the first fills up (and says to photocopy the
+  // whole page for a third). `blocks` lists each block's own column x's;
+  // the shared `rowYs` is reused for every block, left block filling
+  // first.
+  if (template.log.blocks) {
+    const blocks = template.log.blocks;
+    const blockCapacity = rowYs.length * blocks.length;
+    const sorted = [...logs].sort(byTimeAsc);
+    const rows =
+      sorted.length > blockCapacity ? sorted.slice(sorted.length - blockCapacity) : sorted;
+    const omittedCount = Math.max(0, sorted.length - blockCapacity);
+
+    rows.forEach((log, i) => {
+      const blockIndex = Math.floor(i / rowYs.length);
+      const y = rowYs[i % rowYs.length];
+      const drawRow = (text, x) => {
+        if (!text) return;
+        page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
+      };
+      placeInFields(drawRow, blocks[blockIndex], log);
     });
 
     return { missing: [], omittedCount };
@@ -366,6 +411,56 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
   return { missing: [], omittedCount };
 }
 
+// Texas's DES150N log isn't organized by date at all — it's organized by
+// the ten skill categories from TDLR's Behind-the-Wheel Instruction Guide,
+// with a fixed number of day/night rows per category and the hours for
+// each row already pre-printed by the state (e.g. "Backing" gets exactly
+// one 30-minute day row and one 30-minute night row, always). So instead
+// of placing drives into a flat pool of rows, each category pulls only
+// from drives the parent tagged with that category (see
+// src/data/skillCategories.js), split into that category's own day-row and
+// night-row pools, most recent first same as every other log here. A
+// handful of rows ask for both a day amount and a night amount in the same
+// row (City Driving and Expressway/Freeway Driving each have one) — there
+// is no single drive that is both, so those rows are left for the parent.
+async function drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const page = pdf.getPages()[template.log.page ?? 0];
+  const size = template.log.size ?? 9;
+  const byTimeAsc = (a, b) => new Date(a.startTime) - new Date(b.startTime);
+
+  const draw = (text, x, y) => {
+    if (!text) return;
+    page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
+  };
+
+  const place = (log, y) => {
+    const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+    draw(formatShortDate(log), template.log.dateX, y);
+    draw(formatClockTime(new Date(log.startTime), offset), template.log.timeX, y);
+  };
+
+  let omittedCount = 0;
+  for (const category of template.log.categories) {
+    const tagged = logs.filter((l) => l.skills?.includes(category.key));
+    const dayLogs = tagged.filter((l) => l.timeOfDay !== 'night').sort(byTimeAsc);
+    const nightLogs = tagged.filter((l) => l.timeOfDay === 'night').sort(byTimeAsc);
+    const dayCapacity = category.day?.length ?? 0;
+    const nightCapacity = category.night?.length ?? 0;
+
+    const dayRows =
+      dayLogs.length > dayCapacity ? dayLogs.slice(dayLogs.length - dayCapacity) : dayLogs;
+    const nightRows =
+      nightLogs.length > nightCapacity ? nightLogs.slice(nightLogs.length - nightCapacity) : nightLogs;
+    omittedCount += Math.max(0, dayLogs.length - dayCapacity) + Math.max(0, nightLogs.length - nightCapacity);
+
+    dayRows.forEach((log, i) => place(log, category.day[i]));
+    nightRows.forEach((log, i) => place(log, category.night[i]));
+  }
+
+  return { missing: [], omittedCount };
+}
+
 /**
  * Produces the filled form as bytes. Separated from the download so it can be
  * exercised without a browser.
@@ -389,10 +484,18 @@ export async function buildFilledStateForm({
 
   let missing = [];
   let omittedCount = 0;
-  if (template.kind === 'overlay' || template.kind === 'overlay-log') {
+  if (
+    template.kind === 'overlay' ||
+    template.kind === 'overlay-log' ||
+    template.kind === 'overlay-category-log'
+  ) {
     missing = await drawOverlay(pdf, template, ctx, { StandardFonts, rgb });
     if (template.kind === 'overlay-log') {
       const rows = await drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs);
+      omittedCount = rows.omittedCount;
+    }
+    if (template.kind === 'overlay-category-log') {
+      const rows = await drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }, logs);
       omittedCount = rows.omittedCount;
     }
   } else {

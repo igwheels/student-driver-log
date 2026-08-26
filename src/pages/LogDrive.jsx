@@ -13,6 +13,7 @@ import {
   fromZonedInputs,
   zonedHours,
 } from '../utils/driveTime';
+import { SKILL_CATEGORIES } from '../data/skillCategories';
 
 const DRIVE_TYPES = [
   { label: 'Local', value: 'local' },
@@ -87,9 +88,20 @@ export default function LogDrive() {
       ? String(prefill.distanceMiles)
       : ''
   );
+  const [skills, setSkills] = useState(existingLog?.skills ?? []);
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [bragCopied, setBragCopied] = useState(false);
+
+  // Texas's own log is organized around these ten skill categories rather
+  // than a running date/duration grid, so it requires at least one tag per
+  // drive. Every other state's log — where it has a Comments or Skills
+  // Practiced column at all — just prints whichever tags are set.
+  const requireSkills = student?.state === 'TX';
+
+  const toggleSkill = (key) => {
+    setSkills((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
 
   const { startDate, endDate, durationMinutes } = useMemo(() => {
     const sd = fromZonedInputs(dateStr, startStr, offsetMinutes);
@@ -121,6 +133,10 @@ export default function LogDrive() {
 
     if (distance && isNaN(parseFloat(distance))) return setError('Distance must be a number of miles.');
 
+    if (requireSkills && skills.length === 0) {
+      return setError("Select at least one skill practiced — Texas's log requires it for every drive.");
+    }
+
     const fields = {
       date: dateStr,
       startTime: startDate.toISOString(),
@@ -129,6 +145,7 @@ export default function LogDrive() {
       timeOfDay,
       type,
       distanceMiles: distance ? parseFloat(distance) : null,
+      skills,
       // Recorded so reopening this drive shows the same clock times it was
       // entered with, even from a device in another zone.
       startOffsetMinutes: offsetMinutes,
@@ -266,6 +283,30 @@ export default function LogDrive() {
           <label>Distance (miles)</label>
           <input type="number" step="0.1" min="0" placeholder="e.g. 12.5" value={distance}
                  onChange={(e) => setDistance(e.target.value)} />
+        </div>
+
+        <div className="field">
+          <label>
+            Skills Practiced {requireSkills ? '(required)' : '(optional)'}
+          </label>
+          <div className="skill-chip-row">
+            {SKILL_CATEGORIES.map((cat) => (
+              <button
+                type="button"
+                key={cat.key}
+                className={`skill-chip ${skills.includes(cat.key) ? 'active' : ''}`}
+                onClick={() => toggleSkill(cat.key)}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          {requireSkills && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+              Texas's log is organized by these categories — select whichever were practiced on this
+              drive.
+            </p>
+          )}
         </div>
 
         {error && <p style={{ color: '#D8503F', fontSize: 13, marginTop: 14 }}>{error}</p>}
