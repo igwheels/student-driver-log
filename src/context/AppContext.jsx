@@ -331,6 +331,34 @@ export function AppProvider({ children }) {
 
   const getTotals = (studentId) => {
     const entries = getLogs(studentId);
+
+    // Texas counts at most two hours of behind-the-wheel instruction per
+    // calendar day toward the 30-hour requirement — one hour day, one hour
+    // night — regardless of how much was actually driven that day, per the
+    // state's own DES150N log ("Only two (2) hours of behind-the-wheel
+    // instruction per day will count towards the 30 hours regardless of the
+    // number of hours the student actually drives in a day"). Every other
+    // state counts the full logged time.
+    const student = students.find((s) => s.id === studentId);
+    if (student?.state === 'TX') {
+      const byDate = new Map();
+      for (const e of entries) {
+        const bucket = byDate.get(e.date) ?? { day: 0, night: 0 };
+        if (e.timeOfDay === 'night') bucket.night += e.durationMinutes;
+        else bucket.day += e.durationMinutes;
+        byDate.set(e.date, bucket);
+      }
+      let total = 0;
+      let night = 0;
+      for (const { day, night: n } of byDate.values()) {
+        const cappedDay = Math.min(day, 60);
+        const cappedNight = Math.min(n, 60);
+        total += cappedDay + cappedNight;
+        night += cappedNight;
+      }
+      return { totalMinutes: total, nightMinutes: night };
+    }
+
     let total = 0;
     let night = 0;
     for (const e of entries) {

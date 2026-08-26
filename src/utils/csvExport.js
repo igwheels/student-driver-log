@@ -12,6 +12,7 @@
  */
 import { localOffsetMinutes, toZonedTimeInput } from './driveTime';
 import { downloadFileName } from './fileName';
+import { formatSkills } from '../data/skillCategories';
 
 const DRIVE_TYPE_LABELS = { local: 'Local', rural: 'Rural', highway: 'Highway' };
 
@@ -42,6 +43,7 @@ export function buildDrivesCsv({ student, logs }) {
     'Time of Day',
     'Drive Type',
     'Distance (miles)',
+    'Skills Practiced',
   ];
 
   const rows = [...logs]
@@ -58,6 +60,7 @@ export function buildDrivesCsv({ student, logs }) {
         log.timeOfDay === 'night' ? 'Night' : 'Day',
         DRIVE_TYPE_LABELS[log.type] ?? log.type ?? '',
         log.distanceMiles ?? '',
+        formatSkills(log.skills),
       ]);
     });
 
