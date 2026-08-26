@@ -432,6 +432,34 @@ const mnRowYs = [
   204.7, 188.0, 171.3, 155.0, 137.7,
 ];
 
+// Maryland's RD-006 practice log runs across 4 pages of its 5-page booklet
+// (the 5th is the age-branched certification page, handled separately) —
+// 19 rows on the first page, which shares its page with an instructional
+// paragraph, then 23 rows on each full page after. Row entries are a plain
+// y (page 0, the `log.page` default) or a `{ page, y }` pair, same shape
+// as West Virginia's two-page log.
+const mdRowYs = [
+  422.7, 401.0, 379.3, 357.7, 336.0, 314.7, 293.0, 271.3, 249.7, 228.0, 206.7, 185.0, 163.3, 141.7, 120.0, 98.7, 77.0, 55.3, 33.7,
+  { page: 1, y: 527.0 }, { page: 1, y: 505.3 }, { page: 1, y: 484.0 }, { page: 1, y: 462.3 },
+  { page: 1, y: 440.7 }, { page: 1, y: 419.0 }, { page: 1, y: 397.3 }, { page: 1, y: 376.0 },
+  { page: 1, y: 354.3 }, { page: 1, y: 332.7 }, { page: 1, y: 311.0 }, { page: 1, y: 289.3 },
+  { page: 1, y: 268.0 }, { page: 1, y: 246.3 }, { page: 1, y: 224.7 }, { page: 1, y: 203.0 },
+  { page: 1, y: 181.3 }, { page: 1, y: 160.0 }, { page: 1, y: 138.3 }, { page: 1, y: 116.7 },
+  { page: 1, y: 95.0 }, { page: 1, y: 73.3 }, { page: 1, y: 52.0 },
+  { page: 2, y: 527.0 }, { page: 2, y: 505.3 }, { page: 2, y: 484.0 }, { page: 2, y: 462.3 },
+  { page: 2, y: 440.7 }, { page: 2, y: 419.0 }, { page: 2, y: 397.3 }, { page: 2, y: 376.0 },
+  { page: 2, y: 354.3 }, { page: 2, y: 332.7 }, { page: 2, y: 311.0 }, { page: 2, y: 289.3 },
+  { page: 2, y: 268.0 }, { page: 2, y: 246.3 }, { page: 2, y: 224.7 }, { page: 2, y: 203.0 },
+  { page: 2, y: 181.3 }, { page: 2, y: 160.0 }, { page: 2, y: 138.3 }, { page: 2, y: 116.7 },
+  { page: 2, y: 95.0 }, { page: 2, y: 73.3 }, { page: 2, y: 52.0 },
+  { page: 3, y: 527.0 }, { page: 3, y: 505.3 }, { page: 3, y: 484.0 }, { page: 3, y: 462.3 },
+  { page: 3, y: 440.7 }, { page: 3, y: 419.0 }, { page: 3, y: 397.3 }, { page: 3, y: 376.0 },
+  { page: 3, y: 354.3 }, { page: 3, y: 332.7 }, { page: 3, y: 311.0 }, { page: 3, y: 289.3 },
+  { page: 3, y: 268.0 }, { page: 3, y: 246.3 }, { page: 3, y: 224.7 }, { page: 3, y: 203.0 },
+  { page: 3, y: 181.3 }, { page: 3, y: 160.0 }, { page: 3, y: 138.3 }, { page: 3, y: 116.7 },
+  { page: 3, y: 95.0 }, { page: 3, y: 73.3 }, { page: 3, y: 52.0 },
+];
+
 export const STATE_FORM_TEMPLATES = {
   NY: {
     kind: 'acroform',
@@ -1031,20 +1059,91 @@ export const STATE_FORM_TEMPLATES = {
       blocks: [
         {
           date: { x: 26 }, day: { x: 69 }, night: { x: 111 }, total: { x: 153 },
-          skills: { x: 194 }, unit: 'minutes',
+          skills: { x: 194, width: 100 }, unit: 'minutes',
         },
         {
           date: { x: 306.7 }, day: { x: 350 }, night: { x: 391.7 }, total: { x: 433.3 },
-          skills: { x: 475.3 }, unit: 'minutes',
+          skills: { x: 475.3, width: 108 }, unit: 'minutes',
         },
       ],
     },
     note:
       'Day/Night/Total Minutes are whole minutes, matching the form’s own header. Skills ' +
       'Practiced prints whichever categories the parent tagged the drive with, same as the DPS ' +
-      'example row. Only the grand Total Driving Hours box is filled — each block’s own DAY/' +
-      'NIGHT/TOTAL MINUTES subtotals and the Signature of Primary Driving Supervisor line are left ' +
-      'for the parent.',
+      'example row — a drive tagged with more categories than the cell can fit shows as many as ' +
+      'fit plus a "+N" count, never overflowing into the next column. Only the grand Total ' +
+      'Driving Hours box is filled — each block’s own DAY/NIGHT/TOTAL MINUTES subtotals and the ' +
+      'Signature of Primary Driving Supervisor line are left for the parent.',
+  },
+
+  AL: {
+    kind: 'overlay',
+    asset: 'forms/al-dl31.pdf',
+    formLabel: 'DL-31 Graduated Driver License Form',
+    revision: 'Rev 09/21',
+    // "Name of Applicant" appears twice — once in the "Permission to Drive
+    // Without Supervision" consent section, once in the "Behind the Wheel
+    // Verification Form" section right below it. Both Signature of Parent
+    // or Legal Guardian lines are left blank.
+    overlay: [
+      { x: 160, y: 495, size: 10, value: fullName },
+      { x: 160, y: 291, size: 10, value: fullName },
+    ],
+    note:
+      'Only the applicant’s name is filled in both sections. Both signature lines are left blank ' +
+      'for the parent to sign, and the Certificate of Completion checkbox (driver education) is ' +
+      'left unmarked — the app doesn’t know whether the student completed a state-approved course.',
+  },
+
+  MS: {
+    kind: 'overlay',
+    asset: 'forms/ms-roadtestwaiver.pdf',
+    formLabel: 'Affidavit for Road Test Waiver',
+    revision: '§63-1-33, Miss. Code Ann. 1972',
+    // The APPLICANT line is one continuous underline spanning Last Name/
+    // First/Middle, positioned under each printed label; the app only has
+    // first and last. Measured from the blank right after "I," on the
+    // certification paragraph for the parent's name.
+    overlay: [
+      { x: 155, y: 569, size: 10, value: (ctx) => ctx.student.lastName },
+      { x: 295, y: 569, size: 10, value: (ctx) => ctx.student.firstName },
+      { x: 85, y: 380, size: 10, value: (ctx) => ctx.parentName },
+    ],
+    note:
+      'This affidavit is for the optional road-test waiver — it is not evidence that Mississippi ' +
+      'requires logged hours generally (it doesn’t; the 50-hour figure printed on this form only ' +
+      'applies to families choosing to waive the road test). Address, date of birth, age, and SSN ' +
+      'are left blank, as is everything from the swear/affirm line down (signature, date, title) ' +
+      'for the parent or instructor to complete.',
+  },
+
+  MD: {
+    kind: 'overlay-log',
+    asset: 'forms/md-rd006.pdf',
+    formLabel: 'RD-006 New Driver & Coach Practice Guide — Practice Log',
+    revision: 'New Driver & Coach Practice Guide',
+    log: {
+      page: 0,
+      rowYs: mdRowYs,
+      size: 8,
+      fields: {
+        date: { x: 31 },
+        start: { x: 86 },
+        end: { x: 235 },
+        hours: { x: 291 },
+        skills: { x: 141, width: 84 },
+      },
+    },
+    // The certification page (5th page of the booklet) branches on the
+    // driver's age — under 25 (60 hrs, 10 at night) or 25+ (14 hrs, 3 at
+    // night) — which the app doesn't track, so both name blanks there are
+    // left for the parent, who signs only the paragraph that applies.
+    note:
+      'The practice log (Date, Start/End Time, Skill or Activity Practiced, Total Hours) is ' +
+      'filled across all four log pages. The certification page is left entirely blank — it has ' +
+      'two alternate paragraphs depending on whether the driver is under 25 or 25 and older, and ' +
+      'the app doesn’t know the driver’s age — the parent fills in whichever paragraph applies ' +
+      'and signs it by hand.',
   },
 };
 
