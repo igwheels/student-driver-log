@@ -13,7 +13,7 @@
 import { stateFormTemplateFor } from '../data/stateFormTemplates';
 import { downloadFileName } from './fileName';
 import { localOffsetMinutes, toZonedDateInput } from './driveTime';
-import { formatSkills } from '../data/skillCategories';
+import { formatSkills, skillShortLabel } from '../data/skillCategories';
 
 // pdf-lib is around half a megabyte and only needed when someone actually
 // asks for a state form, so it is fetched on demand rather than shipped to
@@ -229,6 +229,26 @@ function formatHoursWords(minutes) {
 // pool of rows, no per-minute distinction the form asks for — so `columns`
 // (day/night) and `fields` (one pool) are two different shapes of the same
 // 'overlay-log' kind, told apart by which one the template sets.
+// A drive can carry any number of skill tags, but a raw-text overlay cell
+// (unlike a real AcroForm field) doesn't clip or shrink on its own — text
+// that's too wide just draws past the cell's border into whatever's next to
+// it. Shown tags are dropped from the end, replaced with "+N", until what's
+// left actually measures inside the cell; `maxWidth` of Infinity (the
+// default, for a column with no measured width yet) never truncates.
+function fitTagsToWidth(font, size, skills, maxWidth) {
+  const labels = (skills ?? []).map(skillShortLabel);
+  if (labels.length === 0) return '';
+  for (let shown = labels.length; shown > 0; shown--) {
+    const omitted = labels.length - shown;
+    const text =
+      omitted === 0
+        ? labels.slice(0, shown).join('; ')
+        : `${labels.slice(0, shown).join('; ')} +${omitted}`;
+    if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+  }
+  return `+${labels.length}`;
+}
+
 async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const size = template.log.size ?? 9;
@@ -312,6 +332,10 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
         formatClockTime(new Date(log.endTime), offset);
       drawRow(range, fields.time.x);
     }
+    // Maryland's RD-006 splits the time range into its own Start Time/End
+    // Time columns rather than one combined range cell.
+    if (fields.start) drawRow(formatClockTime(new Date(log.startTime), offset), fields.start.x);
+    if (fields.end) drawRow(formatClockTime(new Date(log.endTime), offset), fields.end.x);
     if (fields.hours) drawRow(formatHoursWords(log.durationMinutes), fields.hours.x);
     // A single pool of rows, but each has its own day-hours/night-hours
     // cells (Kansas's DE-IB01) rather than one duration column (DC's
@@ -330,7 +354,10 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
       }
       if (fields.total) drawRow(amount, fields.total.x);
     }
-    if (fields.skills) drawRow(formatSkills(log.skills), fields.skills.x);
+    if (fields.skills) {
+      const text = fitTagsToWidth(font, size, log.skills, fields.skills.width ?? Infinity);
+      drawRow(text, fields.skills.x);
+    }
   };
 
   if (template.log.fields) {

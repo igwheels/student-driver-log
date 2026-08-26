@@ -32,6 +32,9 @@ positions on the publisher's page where there are no fields.
 | `ak-form433.pdf` | Alaska | Form 433 Parent/Guardian Consent for a Minor (Rev. 08/28/2018) | AcroForm, 13 fields — notarized if parent not present |
 | `tx-des150n.pdf` | Texas | TDLR DES150N Driver Education 30 Hour Behind the Wheel Log (rev December 2024) | flat scan, no fields — organized by skill category, not by date |
 | `mn-supervised-log.pdf` | Minnesota | Supervised Driving Log (Rev. 06/2021) | flat scan, no fields — two side-by-side row blocks per page |
+| `al-dl31.pdf` | Alabama | DL-31 Graduated Driver License Form (Rev 09/21) | flat scan, no fields |
+| `ms-roadtestwaiver.pdf` | Mississippi | Affidavit for Road Test Waiver (§63-1-33, Miss. Code Ann. 1972) | flat scan, no fields — optional road-test-waiver path, not a blanket requirement |
+| `md-rd006.pdf` | Maryland | RD-006 New Driver & Coach Practice Guide (5-page booklet) | flat scan, no fields — practice log runs across 4 pages, 88 usable rows |
 
 ## Preparing a new form
 

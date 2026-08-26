@@ -35,8 +35,11 @@
 //         'or-official' — notary OR signing before a license examiner
 //         'conditional' — only in certain circumstances (see notaryNote)
 export const STATE_AFFIDAVITS = {
-  AL: { kind: 'generic', shape: 'summary', verify: true,
-        note: 'ALEA indicates no official numbered hours form, and possibly no log requirement at all.' },
+  AL: { kind: 'specific', form: 'Graduated Driver License Form', number: 'DL-31', shape: 'summary',
+        url: 'https://www.alea.gov/dps/driver-license',
+        note: 'Combines the "permission to drive without supervision" consent and the 50-hour ' +
+              'behind-the-wheel certification on one page, plus a driver-education completion ' +
+              'checkbox.' },
   AK: { kind: 'specific', form: 'Parent/Guardian Consent', number: 'Form 433', shape: 'summary',
         url: 'https://dmv.alaska.gov/media/cuebehop/433.pdf' },
   AZ: { kind: 'specific', form: 'Driving Practice Certificate', number: '96-0223', shape: 'summary',
@@ -49,8 +52,9 @@ export const STATE_AFFIDAVITS = {
         conditional: 'Rises to 62 hours if 12 behind-the-wheel hours were completed with a parent.' },
   CT: { kind: 'generic', shape: 'per-drive',
         note: 'Home-training log signed by a parent. CS-1 is the driver-education certificate, not an hours form.' },
-  DE: { kind: 'generic', shape: 'summary', verify: true,
-        note: 'A DMV/Department of Education certification with no public form number, submitted to the Department of Education.' },
+  DE: { kind: 'generic', shape: 'summary',
+        note: 'Confirmed no specific required form — a DMV/Department of Education certification ' +
+              'with no public form number, submitted to the Department of Education.' },
   DC: { kind: 'specific', form: 'Certification of Eligibility for Provisional License', number: 'DMV-GRAD-HR40', shape: 'per-drive',
         url: 'https://dmv.dc.gov/service/learner-permits-and-provisional-licenses',
         // The published form (Rev.08/24/09) certifies 40 hours total with no
@@ -91,8 +95,11 @@ export const STATE_AFFIDAVITS = {
         note: 'A parent or guardian signed statement, per RS 32:405.1.' },
   ME: { kind: 'specific', form: 'Permittee Driving Log', number: 'MVE-21', shape: 'per-drive',
         url: 'https://www.maine.gov/sos/bmv/' },
-  MD: { kind: 'generic', shape: 'per-drive', verify: true,
-        note: 'Rookie Driver Practice & Skills Log with a certification page; referenced as DL-195, which needs confirming.' },
+  MD: { kind: 'specific', form: 'Rookie Driver Skills Log and Practice Guide', number: 'RD-006', shape: 'per-drive',
+        url: 'https://mva.maryland.gov/drivers/Pages/rookie-driver.aspx',
+        note: 'Issued with the learner’s permit; its certification page must be presented at the ' +
+              'skills test. Corrected from an earlier "DL-195" reference — DL-195 (7-05) was a ' +
+              'superseded informational notice, not the log itself.' },
   MA: { kind: 'generic', shape: 'per-drive',
         url: 'https://www.mass.gov/doc/supervised-driving-log',
         note: 'A published Supervised Driving Log with no form number; the parent certifies on road-test day.',
@@ -106,8 +113,11 @@ export const STATE_AFFIDAVITS = {
   MN: { kind: 'specific', form: 'Supervised Driving Log', shape: 'per-drive',
         url: 'https://dps.mn.gov/divisions/dvs/Pages/default.aspx',
         note: 'The DPS format is mandatory.' },
-  MS: { kind: 'generic', shape: 'summary', verify: true,
-        note: 'A parent-certified affidavit; no distinct numbered form was located on an official page.' },
+  MS: { kind: 'generic', shape: 'summary',
+        note: 'No specific form is required generally. Families who want to waive the road test ' +
+              'can instead file an "Affidavit for Road Test Waiver" (§63-1-33, Miss. Code Ann. ' +
+              '1972), which requires 50 hours of driving instruction — that figure applies only ' +
+              'to this optional path, not as a general Mississippi hours requirement.' },
   MO: { kind: 'generic', shape: 'summary',
         note: 'Certified by signature on the intermediate licence application; Driver Experience Log Form 4901 is optional.' },
   // Confirmed no specific form is required — the generic affidavit is the
@@ -133,7 +143,9 @@ export const STATE_AFFIDAVITS = {
         url: 'https://www.ncdot.gov/dmv/',
         note: 'DHSR-100 relates to a licensed driving-school pathway, not the standard parent-supervised log.' },
   ND: { kind: 'generic', shape: 'per-drive', verify: true,
-        note: 'A signed log. No discrete night-hour figure surfaced from an official source.' },
+        note: 'A signed log; no specific numbered form found. The 50-hour requirement (10 at ' +
+              'night, NDCC 39-06-05) applies only to permit holders under 16 — 16- and ' +
+              '17-year-olds have no logged-hours requirement at all.' },
   OH: { kind: 'specific', form: 'Fifty-Hour Affidavit', number: 'BMV 5791', shape: 'per-drive',
         url: 'https://bmv.ohio.gov/dl-gdl.aspx',
         notary: 'required',

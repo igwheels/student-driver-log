@@ -45,7 +45,7 @@ export const STATE_REQUIREMENTS = {
   NM: { name: 'New Mexico', totalHours: 50, nightHours: 10 },
   NY: { name: 'New York', totalHours: 50, nightHours: 15 },
   NC: { name: 'North Carolina', totalHours: 60, nightHours: 10, note: '+12 hours (6 at night) required for a full provisional license.' },
-  ND: { name: 'North Dakota', totalHours: 50, nightHours: 0, note: 'Applies to permit holders under 16; none if 16 or older.' },
+  ND: { name: 'North Dakota', totalHours: 50, nightHours: 10, note: 'Applies to permit holders under 16 (NDCC 39-06-05); no hour/log requirement at all if 16 or older.' },
   OH: { name: 'Ohio', totalHours: 50, nightHours: 10 },
   OK: { name: 'Oklahoma', totalHours: 50, nightHours: 10 },
   OR: { name: 'Oregon', totalHours: 50, nightHours: 0, note: '100 hours without driver education.' },
