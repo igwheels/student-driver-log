@@ -58,6 +58,15 @@ const lastFirst = (ctx) => `${ctx.student.lastName}, ${ctx.student.firstName}`.t
 const today = (ctx) =>
   ctx.today.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
+// Decimal hours, trimmed to at most two places — same rounding as the
+// per-drive log fillers, duplicated here because a handful of plain
+// 'acroform' certifications (no per-drive grid at all) still have their own
+// total-hours fields to fill.
+const formatHours = (minutes) => String(Math.round(((minutes ?? 0) / 60) * 100) / 100);
+const totalHours = (ctx) => formatHours(ctx.totals?.totalMinutes);
+const nightHours = (ctx) => formatHours(ctx.totals?.nightMinutes);
+const dayHours = (ctx) => formatHours((ctx.totals?.totalMinutes ?? 0) - (ctx.totals?.nightMinutes ?? 0));
+
 // The app only ever collects one free-text name for the supervising parent
 // or guardian (the account's display name), but a few states' own forms ask
 // for it as separate First/Last fields. Splitting on the last space is a
@@ -108,6 +117,253 @@ const coRows = [
     day: `Driving Time_${n}`,
     night: `Night Driving_${String(n).padStart(2, '0')}`,
   })),
+];
+
+// Illinois' DSD X152 log rows are the messiest of any state here: page 1
+// mixes an unlabeled first row with number-before-suffix names ("1 DAYTIME
+// PAGE 29"), and page 2 switches to a cleaner RowN suffix. Names here are
+// pdf-lib's own resolved field names — a couple of raw /T values in the
+// published PDF carry a trailing "." (a PDF field-hierarchy separator,
+// which pdf-lib strips as an empty child segment: "DateRow31." resolves to
+// just "DateRow31"), confirmed by round-tripping through pdf-lib itself
+// rather than trusting the raw name. Extracted programmatically from the
+// published PDF's field list and rects, grouped into rows by y-position,
+// not transcribed by hand.
+const ilRows = [
+  { date: 'DATE PAGE 29', day: 'DAYTIME PAGE 29', night: 'NIGHTTIME PAGE 29' },
+  { date: 'DATE 1 PAGE 29', day: '1 DAYTIME PAGE 29', night: '1 NIGHTTIME PAGE 29' },
+  { date: 'DATE 2 PAGE 29', day: '2 DAYTIME PAGE 29', night: '2 NIGHTTIME PAGE 29' },
+  { date: 'DATE 3 PAGE 29', day: '3 DAYTIME PAGE 29', night: '3 NIGHTTIME PAGE 29' },
+  { date: 'DATE 4 PAGE 29', day: '4 DAYTIME PAGE 29', night: '4 NIGHTTIME PAGE 29' },
+  { date: 'DATE 5 PAGE 29', day: '5 DAYTIME PAGE 29', night: '5 NIGHTTIME PAGE 29' },
+  { date: 'DATE 6 PAGE 29', day: '6 DAYTIME PAGE 29', night: '6 NIGHTTIME PAGE 29' },
+  { date: 'DATE 7 PAGE 29', day: '7 DAYTIME PAGE 29', night: '7 NIGHTTIME PAGE 29' },
+  { date: 'DATE 8 PAGE 29', day: '8 DAYTIME PAGE 29', night: '8 NIGHTTIME PAGE 29' },
+  { date: 'DATE 9 PAGE 29', day: '9 DAYTIME PAGE 29', night: '9 NIGHTTIME PAGE 29' },
+  { date: 'DATE 10 PAGE 29', day: '10 DAYTIME PAGE 29', night: '10 NIGHTTIME PAGE 29' },
+  { date: 'DATE 11 PAGE 29', day: '11 DAYTIME PAGE 29', night: '11 NIGHTTIME PAGE 29' },
+  { date: 'DATE 12 PAGE 29', day: '12 DAYTIME PAGE 29', night: '12 NIGHTTIME PAGE 29' },
+  { date: 'DATE 13 PAGE 29', day: '13 DAYTIME PAGE 29', night: '13 NIGHTTIME PAGE 29' },
+  { date: 'DATE 14 PAGE 29', day: '14 DAYTIME PAGE 29', night: '14 NIGHTTIME PAGE 29' },
+  { date: 'DATE 15 PAGE 29', day: '15 DAYTIME PAGE 29', night: '15 NIGHTTIME PAGE 29' },
+  { date: 'DATE 16 PAGE 29', day: '16 DAYTIME PAGE 29', night: '16 NIGHTTIME PAGE 29' },
+  { date: 'DATE 17 PAGE 29', day: '17 DAYTIME PAGE 29', night: '17 NIGHTTIME PAGE 29' },
+  { date: 'DATE 18 PAGE 29', day: '18 DAYTIME PAGE 29', night: '18 NIGHTTIME PAGE 29' },
+  { date: 'DATE 19 PAGE 29', day: '19 DAYTIME PAGE 29', night: '19 NIGHTTIME PAGE 29' },
+  { date: 'DATE 20 PAGE 29', day: '20 DAYTIME PAGE 29', night: '20 NIGHTTIME PAGE 29' },
+  { date: 'DateRow1', day: 'DaytimeRow1', night: 'NighttimeRow1' },
+  { date: 'DateRow2', day: 'DaytimeRow2', night: 'NighttimeRow2' },
+  { date: 'DateRow3', day: 'DaytimeRow3', night: 'NighttimeRow3' },
+  { date: 'DateRow4', day: 'DaytimeRow4', night: 'NighttimeRow4' },
+  { date: 'DateRow5', day: 'DaytimeRow5', night: 'NighttimeRow5' },
+  { date: 'DateRow6', day: 'DaytimeRow6', night: 'NighttimeRow6' },
+  { date: 'DateRow7', day: 'DaytimeRow7', night: 'NighttimeRow7' },
+  { date: 'DateRow8', day: 'DaytimeRow8', night: 'NighttimeRow8' },
+  { date: 'DateRow9', day: 'DaytimeRow9', night: 'NighttimeRow9' },
+  { date: 'DateRow10', day: 'DaytimeRow10', night: 'NighttimeRow10' },
+  { date: 'DateRow11', day: 'DaytimeRow11', night: 'NighttimeRow11' },
+  { date: 'DateRow12', day: 'DaytimeRow12', night: 'NighttimeRow12' },
+  { date: 'DateRow13', day: 'DaytimeRow13', night: 'NighttimeRow13' },
+  { date: 'DateRow14', day: 'DaytimeRow14', night: 'NighttimeRow14' },
+  { date: 'DateRow15', day: 'DaytimeRow15', night: 'NighttimeRow15' },
+  { date: 'DateRow16', day: 'DaytimeRow16', night: 'NighttimeRow16' },
+  { date: 'DateRow17', day: 'DaytimeRow17', night: 'NighttimeRow17' },
+  { date: 'DateRow18', day: 'DaytimeRow18', night: 'NighttimeRow18' },
+  { date: 'DateRow19', day: 'DaytimeRow19', night: 'NighttimeRow19' },
+  { date: 'DateRow20', day: 'DaytimeRow20', night: 'NighttimeRow20' },
+  { date: 'DateRow21', day: 'DaytimeRow21', night: 'NighttimeRow21' },
+  { date: 'DateRow22', day: 'DaytimeRow22', night: 'NighttimeRow22' },
+  { date: 'DateRow23', day: 'DaytimeRow23', night: 'NighttimeRow23' },
+  { date: 'DateRow24', day: 'DaytimeRow24', night: 'NighttimeRow24' },
+  { date: 'DateRow25', day: 'DaytimeRow25', night: 'NighttimeRow25' },
+  { date: 'DateRow26', day: 'DaytimeRow26', night: 'NighttimeRow26' },
+  { date: 'DateRow27', day: 'DaytimeRow27', night: 'NighttimeRow27' },
+  { date: 'DateRow28', day: 'DaytimeRow28', night: 'NighttimeRow28' },
+  { date: 'DateRow29', day: 'DaytimeRow29', night: 'NighttimeRow29' },
+  { date: 'DateRow30', day: 'DaytimeRow30', night: 'NighttimeRow30' },
+  { date: 'DateRow31', day: 'DaytimeRow31', night: 'NighttimeRow31' },
+  { date: 'DateRow32', day: 'DaytimeRow32', night: 'NighttimeRow32' },
+  { date: 'DateRow33', day: 'DaytimeRow33', night: 'NighttimeRow33' },
+  { date: 'DateRow34', day: 'DaytimeRow34', night: 'NighttimeRow34' },
+  { date: 'DateRow35', day: 'DaytimeRow35', night: 'NighttimeRow35' },
+  { date: 'DateRow36', day: 'DaytimeRow36', night: 'NighttimeRow36' },
+  { date: 'DateRow37', day: 'DaytimeRow37', night: 'NighttimeRow37' },
+  { date: 'DateRow38', day: 'DaytimeRow38', night: 'NighttimeRow38' },
+  { date: 'DateRow39', day: 'DaytimeRow39', night: 'NighttimeRow39' },
+  { date: 'DateRow40', day: 'DaytimeRow40', night: 'NighttimeRow40' },
+  { date: 'DateRow41', day: 'DaytimeRow41', night: 'NighttimeRow41' },
+  { date: 'DateRow42', day: 'DaytimeRow42', night: 'NighttimeRow42' },
+  { date: 'DateRow43', day: 'DaytimeRow43', night: 'NighttimeRow43' },
+];
+
+// Kansas' DE-IB01 log rows, measured from the printed grid lines in a
+// rendering of the page: 24 equal rows, ~13.6-14pt each.
+const ksRowYs = [
+  606.5, 592.8, 578.8, 565.2, 551.2, 537.5, 523.8, 509.8, 496.2, 482.2,
+  468.5, 454.8, 440.8, 427.2, 413.2, 399.5, 385.8, 371.8, 358.2, 344.2,
+  330.5, 316.8, 302.8, 289.2,
+];
+
+// North Carolina's DL-4A rows: date + a clock-time stamp in whichever of
+// "Time of Day"/"Time of Night" applies + an always-filled hours column,
+// rather than a duration split across two hour cells — a different shape
+// from every other acroform-log here. 56 rows across 2 pages; page 2's
+// field names carry literal tab/CR characters straight from the state's
+// own PDF ("AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow1"), confirmed
+// correct by resolving through pdf-lib itself rather than assuming.
+// Extracted programmatically from the published PDF's field list and
+// rects, grouped into rows by y-position, not transcribed by hand.
+const ncRows = [
+  { date: 'DATERow1', dayTime: 'TIME OF DAYRow1', nightTime: 'TIME OF NIGHTRow1', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow1' },
+  { date: 'DATERow2', dayTime: 'TIME OF DAYRow2', nightTime: 'TIME OF NIGHTRow2', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow2' },
+  { date: 'DATERow3', dayTime: 'TIME OF DAYRow3', nightTime: 'TIME OF NIGHTRow3', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow3' },
+  { date: 'DATERow4', dayTime: 'TIME OF DAYRow4', nightTime: 'TIME OF NIGHTRow4', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow4' },
+  { date: 'DATERow5', dayTime: 'TIME OF DAYRow5', nightTime: 'TIME OF NIGHTRow5', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow5' },
+  { date: 'DATERow6', dayTime: 'TIME OF DAYRow6', nightTime: 'TIME OF NIGHTRow6', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow6' },
+  { date: 'DATERow7', dayTime: 'TIME OF DAYRow7', nightTime: 'TIME OF NIGHTRow7', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow7' },
+  { date: 'DATERow8', dayTime: 'TIME OF DAYRow8', nightTime: 'TIME OF NIGHTRow8', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow8' },
+  { date: 'DATERow9', dayTime: 'TIME OF DAYRow9', nightTime: 'TIME OF NIGHTRow9', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow9' },
+  { date: 'DATERow10', dayTime: 'TIME OF DAYRow10', nightTime: 'TIME OF NIGHTRow10', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow10' },
+  { date: 'DATERow11', dayTime: 'TIME OF DAYRow11', nightTime: 'TIME OF NIGHTRow11', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow11' },
+  { date: 'DATERow12', dayTime: 'TIME OF DAYRow12', nightTime: 'TIME OF NIGHTRow12', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow12' },
+  { date: 'DATERow13', dayTime: 'TIME OF DAYRow13', nightTime: 'TIME OF NIGHTRow13', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow13' },
+  { date: 'DATERow14', dayTime: 'TIME OF DAYRow14', nightTime: 'TIME OF NIGHTRow14', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow14' },
+  { date: 'DATERow15', dayTime: 'TIME OF DAYRow15', nightTime: 'TIME OF NIGHTRow15', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow15' },
+  { date: 'DATERow16', dayTime: 'TIME OF DAYRow16', nightTime: 'TIME OF NIGHTRow16', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow16' },
+  { date: 'DATERow17', dayTime: 'TIME OF DAYRow17', nightTime: 'TIME OF NIGHTRow17', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow17' },
+  { date: 'DATERow18', dayTime: 'TIME OF DAYRow18', nightTime: 'TIME OF NIGHTRow18', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow18' },
+  { date: 'DATERow19', dayTime: 'TIME OF DAYRow19', nightTime: 'TIME OF NIGHTRow19', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow19' },
+  { date: 'DATERow20.0', dayTime: 'TIME OF DAYRow20.0', nightTime: 'TIME OF NIGHTRow20.0', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.0' },
+  { date: 'DATERow20.1.0', dayTime: 'TIME OF DAYRow20.1.0', nightTime: 'TIME OF NIGHTRow20.1.0', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.0' },
+  { date: 'DATERow20.1.1', dayTime: 'TIME OF DAYRow20.1.1', nightTime: 'TIME OF NIGHTRow20.1.1', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.1' },
+  { date: 'DATERow20.1.2', dayTime: 'TIME OF DAYRow20.1.2', nightTime: 'TIME OF NIGHTRow20.1.2', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.2' },
+  { date: 'DATERow20.1.3', dayTime: 'TIME OF DAYRow20.1.3', nightTime: 'TIME OF NIGHTRow20.1.3', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.3' },
+  { date: 'DATERow20.1.4', dayTime: 'TIME OF DAYRow20.1.4', nightTime: 'TIME OF NIGHTRow20.1.4', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.4' },
+  { date: 'DATERow20.1.5', dayTime: 'TIME OF DAYRow20.1.5', nightTime: 'TIME OF NIGHTRow20.1.5', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.5' },
+  { date: 'DATERow20.1.6', dayTime: 'TIME OF DAYRow20.1.6', nightTime: 'TIME OF NIGHTRow20.1.6', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.6' },
+  { date: 'DATERow20.1.7', dayTime: 'TIME OF DAYRow20.1.7', nightTime: 'TIME OF NIGHTRow20.1.7', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.7' },
+  { date: 'DATERow20.1.8', dayTime: 'TIME OF DAYRow20.1.8', nightTime: 'TIME OF NIGHTRow20.1.8', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.8' },
+  { date: 'DATERow20.1.9', dayTime: 'TIME OF DAYRow20.1.9', nightTime: 'TIME OF NIGHTRow20.1.9', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.9' },
+  { date: 'DATERow20.1.10', dayTime: 'TIME OF DAYRow20.1.10', nightTime: 'TIME OF NIGHTRow20.1.10', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.10' },
+  { date: 'DATERow20.1.11', dayTime: 'TIME OF DAYRow20.1.11', nightTime: 'TIME OF NIGHTRow20.1.11', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.11' },
+  { date: 'DATERow20.1.12', dayTime: 'TIME OF DAYRow20.1.12', nightTime: 'TIME OF NIGHTRow20.1.12', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.12' },
+  { date: 'DATERow20.1.13', dayTime: 'TIME OF DAYRow20.1.13', nightTime: 'TIME OF NIGHTRow20.1.13', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.13' },
+  { date: 'DATERow20.1.14', dayTime: 'TIME OF DAYRow20.1.14', nightTime: 'TIME OF NIGHTRow20.1.14', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.14' },
+  { date: 'DATERow20.1.15', dayTime: 'TIME OF DAYRow20.1.15', nightTime: 'TIME OF NIGHTRow20.1.15', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.15' },
+  { date: 'DATERow20.1.16', dayTime: 'TIME OF DAYRow20.1.16', nightTime: 'TIME OF NIGHTRow20.1.16', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.16' },
+  { date: 'DATERow20.1.17', dayTime: 'TIME OF DAYRow20.1.17', nightTime: 'TIME OF NIGHTRow20.1.17', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.17' },
+  { date: 'DATERow20.1.18', dayTime: 'TIME OF DAYRow20.1.18', nightTime: 'TIME OF NIGHTRow20.1.18', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.18' },
+  { date: 'DATERow20.1.19', dayTime: 'TIME OF DAYRow20.1.19', nightTime: 'TIME OF NIGHTRow20.1.19', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.19' },
+  { date: 'DATERow20.1.20', dayTime: 'TIME OF DAYRow20.1.20', nightTime: 'TIME OF NIGHTRow20.1.20', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.20' },
+  { date: 'DATERow20.1.21', dayTime: 'TIME OF DAYRow20.1.21', nightTime: 'TIME OF NIGHTRow20.1.21', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.21' },
+  { date: 'DATERow20.1.22', dayTime: 'TIME OF DAYRow20.1.22', nightTime: 'TIME OF NIGHTRow20.1.22', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.22' },
+  { date: 'DATERow20.1.23', dayTime: 'TIME OF DAYRow20.1.23', nightTime: 'TIME OF NIGHTRow20.1.23', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.23' },
+  { date: 'DATERow20.1.24', dayTime: 'TIME OF DAYRow20.1.24', nightTime: 'TIME OF NIGHTRow20.1.24', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.24' },
+  { date: 'DATERow20.1.25', dayTime: 'TIME OF DAYRow20.1.25', nightTime: 'TIME OF NIGHTRow20.1.25', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.25' },
+  { date: 'DATERow20.1.26', dayTime: 'TIME OF DAYRow20.1.26', nightTime: 'TIME OF NIGHTRow20.1.26', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.26' },
+  { date: 'DATERow20.1.27', dayTime: 'TIME OF DAYRow20.1.27', nightTime: 'TIME OF NIGHTRow20.1.27', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.27' },
+  { date: 'DATERow20.1.28', dayTime: 'TIME OF DAYRow20.1.28', nightTime: 'TIME OF NIGHTRow20.1.28', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.28' },
+  { date: 'DATERow20.1.29', dayTime: 'TIME OF DAYRow20.1.29', nightTime: 'TIME OF NIGHTRow20.1.29', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.29' },
+  { date: 'DATERow20.1.30', dayTime: 'TIME OF DAYRow20.1.30', nightTime: 'TIME OF NIGHTRow20.1.30', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.30' },
+  { date: 'DATERow20.1.31', dayTime: 'TIME OF DAYRow20.1.31', nightTime: 'TIME OF NIGHTRow20.1.31', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.31' },
+  { date: 'DATERow20.1.32', dayTime: 'TIME OF DAYRow20.1.32', nightTime: 'TIME OF NIGHTRow20.1.32', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.32' },
+  { date: 'DATERow20.1.33', dayTime: 'TIME OF DAYRow20.1.33', nightTime: 'TIME OF NIGHTRow20.1.33', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.33' },
+  { date: 'DATERow20.1.34', dayTime: 'TIME OF DAYRow20.1.34', nightTime: 'TIME OF NIGHTRow20.1.34', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.34' },
+  { date: 'DATERow20.1.35', dayTime: 'TIME OF DAYRow20.1.35', nightTime: 'TIME OF NIGHTRow20.1.35', hours: 'AMOUNT OF DRIVING\t\r  TIME EG  HOURSRow20.1.35' },
+];
+
+// New Hampshire's DSMV 509 asks for a start and end time per row plus
+// running CUMULATIVE day/night totals (not each row's own duration) — see
+// the `cumulative` flag on the template below. 52 rows across 2 pages;
+// the first 10 rows on page 2 collided in name with page 1's rows and got
+// Acrobat's automatic "_2" suffix instead of continuing the RowN scheme
+// the remaining 32 rows use. Extracted programmatically from the
+// published PDF's field list and rects, grouped into rows by y-position,
+// not transcribed by hand.
+const nhRows = [
+  { date: 'DateRow1', start: 'Time AMPM Start  EndRow1', end: 'Time AMPM Start  EndRow1_2', day: 'Cumulative Hours Daytime  NighttimeRow1', night: 'Cumulative Hours Daytime  NighttimeRow1_2' },
+  { date: 'DateRow2', start: 'Time AMPM Start  EndRow2', end: 'Time AMPM Start  EndRow2_2', day: 'Cumulative Hours Daytime  NighttimeRow2', night: 'Cumulative Hours Daytime  NighttimeRow2_2' },
+  { date: 'DateRow3', start: 'Time AMPM Start  EndRow3', end: 'Time AMPM Start  EndRow3_2', day: 'Cumulative Hours Daytime  NighttimeRow3', night: 'Cumulative Hours Daytime  NighttimeRow3_2' },
+  { date: 'DateRow4', start: 'Time AMPM Start  EndRow4', end: 'Time AMPM Start  EndRow4_2', day: 'Cumulative Hours Daytime  NighttimeRow4', night: 'Cumulative Hours Daytime  NighttimeRow4_2' },
+  { date: 'DateRow5', start: 'Time AMPM Start  EndRow5', end: 'Time AMPM Start  EndRow5_2', day: 'Cumulative Hours Daytime  NighttimeRow5', night: 'Cumulative Hours Daytime  NighttimeRow5_2' },
+  { date: 'DateRow6', start: 'Time AMPM Start  EndRow6', end: 'Time AMPM Start  EndRow6_2', day: 'Cumulative Hours Daytime  NighttimeRow6', night: 'Cumulative Hours Daytime  NighttimeRow6_2' },
+  { date: 'DateRow7', start: 'Time AMPM Start  EndRow7', end: 'Time AMPM Start  EndRow7_2', day: 'Cumulative Hours Daytime  NighttimeRow7', night: 'Cumulative Hours Daytime  NighttimeRow7_2' },
+  { date: 'DateRow8', start: 'Time AMPM Start  EndRow8', end: 'Time AMPM Start  EndRow8_2', day: 'Cumulative Hours Daytime  NighttimeRow8', night: 'Cumulative Hours Daytime  NighttimeRow8_2' },
+  { date: 'DateRow9', start: 'Time AMPM Start  EndRow9', end: 'Time AMPM Start  EndRow9_2', day: 'Cumulative Hours Daytime  NighttimeRow9', night: 'Cumulative Hours Daytime  NighttimeRow9_2' },
+  { date: 'DateRow10', start: 'Time AMPM Start  EndRow10', end: 'Time AMPM Start  EndRow10_2', day: 'Cumulative Hours Daytime  NighttimeRow10', night: 'Cumulative Hours Daytime  NighttimeRow10_2' },
+  { date: 'DateRow1_2', start: 'Time AMPM Start   EndRow1', end: 'Time AMPM Start   EndRow1_2', day: 'Cumulative Hours Daytime  NighttimeRow1_3', night: 'Cumulative Hours Daytime  NighttimeRow1_4' },
+  { date: 'DateRow2_2', start: 'Time AMPM Start   EndRow2', end: 'Time AMPM Start   EndRow2_2', day: 'Cumulative Hours Daytime  NighttimeRow2_3', night: 'Cumulative Hours Daytime  NighttimeRow2_4' },
+  { date: 'DateRow3_2', start: 'Time AMPM Start   EndRow3', end: 'Time AMPM Start   EndRow3_2', day: 'Cumulative Hours Daytime  NighttimeRow3_3', night: 'Cumulative Hours Daytime  NighttimeRow3_4' },
+  { date: 'DateRow4_2', start: 'Time AMPM Start   EndRow4', end: 'Time AMPM Start   EndRow4_2', day: 'Cumulative Hours Daytime  NighttimeRow4_3', night: 'Cumulative Hours Daytime  NighttimeRow4_4' },
+  { date: 'DateRow5_2', start: 'Time AMPM Start   EndRow5', end: 'Time AMPM Start   EndRow5_2', day: 'Cumulative Hours Daytime  NighttimeRow5_3', night: 'Cumulative Hours Daytime  NighttimeRow5_4' },
+  { date: 'DateRow6_2', start: 'Time AMPM Start   EndRow6', end: 'Time AMPM Start   EndRow6_2', day: 'Cumulative Hours Daytime  NighttimeRow6_3', night: 'Cumulative Hours Daytime  NighttimeRow6_4' },
+  { date: 'DateRow7_2', start: 'Time AMPM Start   EndRow7', end: 'Time AMPM Start   EndRow7_2', day: 'Cumulative Hours Daytime  NighttimeRow7_3', night: 'Cumulative Hours Daytime  NighttimeRow7_4' },
+  { date: 'DateRow8_2', start: 'Time AMPM Start   EndRow8', end: 'Time AMPM Start   EndRow8_2', day: 'Cumulative Hours Daytime  NighttimeRow8_3', night: 'Cumulative Hours Daytime  NighttimeRow8_4' },
+  { date: 'DateRow9_2', start: 'Time AMPM Start   EndRow9', end: 'Time AMPM Start   EndRow9_2', day: 'Cumulative Hours Daytime  NighttimeRow9_3', night: 'Cumulative Hours Daytime  NighttimeRow9_4' },
+  { date: 'DateRow10_2', start: 'Time AMPM Start   EndRow10', end: 'Time AMPM Start   EndRow10_2', day: 'Cumulative Hours Daytime  NighttimeRow10_3', night: 'Cumulative Hours Daytime  NighttimeRow10_4' },
+  { date: 'DateRow11', start: 'Time AMPM Start   EndRow11', end: 'Time AMPM Start   EndRow11_2', day: 'Cumulative Hours Daytime  NighttimeRow11', night: 'Cumulative Hours Daytime  NighttimeRow11_2' },
+  { date: 'DateRow12', start: 'Time AMPM Start   EndRow12', end: 'Time AMPM Start   EndRow12_2', day: 'Cumulative Hours Daytime  NighttimeRow12', night: 'Cumulative Hours Daytime  NighttimeRow12_2' },
+  { date: 'DateRow13', start: 'Time AMPM Start   EndRow13', end: 'Time AMPM Start   EndRow13_2', day: 'Cumulative Hours Daytime  NighttimeRow13', night: 'Cumulative Hours Daytime  NighttimeRow13_2' },
+  { date: 'DateRow14', start: 'Time AMPM Start   EndRow14', end: 'Time AMPM Start   EndRow14_2', day: 'Cumulative Hours Daytime  NighttimeRow14', night: 'Cumulative Hours Daytime  NighttimeRow14_2' },
+  { date: 'DateRow15', start: 'Time AMPM Start   EndRow15', end: 'Time AMPM Start   EndRow15_2', day: 'Cumulative Hours Daytime  NighttimeRow15', night: 'Cumulative Hours Daytime  NighttimeRow15_2' },
+  { date: 'DateRow16', start: 'Time AMPM Start   EndRow16', end: 'Time AMPM Start   EndRow16_2', day: 'Cumulative Hours Daytime  NighttimeRow16', night: 'Cumulative Hours Daytime  NighttimeRow16_2' },
+  { date: 'DateRow17', start: 'Time AMPM Start   EndRow17', end: 'Time AMPM Start   EndRow17_2', day: 'Cumulative Hours Daytime  NighttimeRow17', night: 'Cumulative Hours Daytime  NighttimeRow17_2' },
+  { date: 'DateRow18', start: 'Time AMPM Start   EndRow18', end: 'Time AMPM Start   EndRow18_2', day: 'Cumulative Hours Daytime  NighttimeRow18', night: 'Cumulative Hours Daytime  NighttimeRow18_2' },
+  { date: 'DateRow19', start: 'Time AMPM Start   EndRow19', end: 'Time AMPM Start   EndRow19_2', day: 'Cumulative Hours Daytime  NighttimeRow19', night: 'Cumulative Hours Daytime  NighttimeRow19_2' },
+  { date: 'DateRow20', start: 'Time AMPM Start   EndRow20', end: 'Time AMPM Start   EndRow20_2', day: 'Cumulative Hours Daytime  NighttimeRow20', night: 'Cumulative Hours Daytime  NighttimeRow20_2' },
+  { date: 'DateRow21', start: 'Time AMPM Start   EndRow21', end: 'Time AMPM Start   EndRow21_2', day: 'Cumulative Hours Daytime  NighttimeRow21', night: 'Cumulative Hours Daytime  NighttimeRow21_2' },
+  { date: 'DateRow22', start: 'Time AMPM Start   EndRow22', end: 'Time AMPM Start   EndRow22_2', day: 'Cumulative Hours Daytime  NighttimeRow22', night: 'Cumulative Hours Daytime  NighttimeRow22_2' },
+  { date: 'DateRow23', start: 'Time AMPM Start   EndRow23', end: 'Time AMPM Start   EndRow23_2', day: 'Cumulative Hours Daytime  NighttimeRow23', night: 'Cumulative Hours Daytime  NighttimeRow23_2' },
+  { date: 'DateRow24', start: 'Time AMPM Start   EndRow24', end: 'Time AMPM Start   EndRow24_2', day: 'Cumulative Hours Daytime  NighttimeRow24', night: 'Cumulative Hours Daytime  NighttimeRow24_2' },
+  { date: 'DateRow25', start: 'Time AMPM Start   EndRow25', end: 'Time AMPM Start   EndRow25_2', day: 'Cumulative Hours Daytime  NighttimeRow25', night: 'Cumulative Hours Daytime  NighttimeRow25_2' },
+  { date: 'DateRow26', start: 'Time AMPM Start   EndRow26', end: 'Time AMPM Start   EndRow26_2', day: 'Cumulative Hours Daytime  NighttimeRow26', night: 'Cumulative Hours Daytime  NighttimeRow26_2' },
+  { date: 'DateRow27', start: 'Time AMPM Start   EndRow27', end: 'Time AMPM Start   EndRow27_2', day: 'Cumulative Hours Daytime  NighttimeRow27', night: 'Cumulative Hours Daytime  NighttimeRow27_2' },
+  { date: 'DateRow28', start: 'Time AMPM Start   EndRow28', end: 'Time AMPM Start   EndRow28_2', day: 'Cumulative Hours Daytime  NighttimeRow28', night: 'Cumulative Hours Daytime  NighttimeRow28_2' },
+  { date: 'DateRow29', start: 'Time AMPM Start   EndRow29', end: 'Time AMPM Start   EndRow29_2', day: 'Cumulative Hours Daytime  NighttimeRow29', night: 'Cumulative Hours Daytime  NighttimeRow29_2' },
+  { date: 'DateRow30', start: 'Time AMPM Start   EndRow30', end: 'Time AMPM Start   EndRow30_2', day: 'Cumulative Hours Daytime  NighttimeRow30', night: 'Cumulative Hours Daytime  NighttimeRow30_2' },
+  { date: 'DateRow31', start: 'Time AMPM Start   EndRow31', end: 'Time AMPM Start   EndRow31_2', day: 'Cumulative Hours Daytime  NighttimeRow31', night: 'Cumulative Hours Daytime  NighttimeRow31_2' },
+  { date: 'DateRow32', start: 'Time AMPM Start   EndRow32', end: 'Time AMPM Start   EndRow32_2', day: 'Cumulative Hours Daytime  NighttimeRow32', night: 'Cumulative Hours Daytime  NighttimeRow32_2' },
+  { date: 'DateRow33', start: 'Time AMPM Start   EndRow33', end: 'Time AMPM Start   EndRow33_2', day: 'Cumulative Hours Daytime  NighttimeRow33', night: 'Cumulative Hours Daytime  NighttimeRow33_2' },
+  { date: 'DateRow34', start: 'Time AMPM Start   EndRow34', end: 'Time AMPM Start   EndRow34_2', day: 'Cumulative Hours Daytime  NighttimeRow34', night: 'Cumulative Hours Daytime  NighttimeRow34_2' },
+  { date: 'DateRow35', start: 'Time AMPM Start   EndRow35', end: 'Time AMPM Start   EndRow35_2', day: 'Cumulative Hours Daytime  NighttimeRow35', night: 'Cumulative Hours Daytime  NighttimeRow35_2' },
+  { date: 'DateRow36', start: 'Time AMPM Start   EndRow36', end: 'Time AMPM Start   EndRow36_2', day: 'Cumulative Hours Daytime  NighttimeRow36', night: 'Cumulative Hours Daytime  NighttimeRow36_2' },
+  { date: 'DateRow37', start: 'Time AMPM Start   EndRow37', end: 'Time AMPM Start   EndRow37_2', day: 'Cumulative Hours Daytime  NighttimeRow37', night: 'Cumulative Hours Daytime  NighttimeRow37_2' },
+  { date: 'DateRow38', start: 'Time AMPM Start   EndRow38', end: 'Time AMPM Start   EndRow38_2', day: 'Cumulative Hours Daytime  NighttimeRow38', night: 'Cumulative Hours Daytime  NighttimeRow38_2' },
+  { date: 'DateRow39', start: 'Time AMPM Start   EndRow39', end: 'Time AMPM Start   EndRow39_2', day: 'Cumulative Hours Daytime  NighttimeRow39', night: 'Cumulative Hours Daytime  NighttimeRow39_2' },
+  { date: 'DateRow40', start: 'Time AMPM Start   EndRow40', end: 'Time AMPM Start   EndRow40_2', day: 'Cumulative Hours Daytime  NighttimeRow40', night: 'Cumulative Hours Daytime  NighttimeRow40_2' },
+  { date: 'DateRow41', start: 'Time AMPM Start   EndRow41', end: 'Time AMPM Start   EndRow41_2', day: 'Cumulative Hours Daytime  NighttimeRow41', night: 'Cumulative Hours Daytime  NighttimeRow41_2' },
+  { date: 'DateRow42', start: 'Time AMPM Start   EndRow42', end: 'Time AMPM Start   EndRow42_2', day: 'Cumulative Hours Daytime  NighttimeRow42', night: 'Cumulative Hours Daytime  NighttimeRow42_2' },
+];
+
+// Kentucky's Practice Driving Log rows, measured from the printed grid
+// lines in a rendering of each page: 32 day rows on page 1, 33 night rows
+// on page 2 — a separate page per side of the split, not just a separate
+// column (see Nevada) or a separate hour cell in a shared row (see
+// Colorado, Illinois, Kansas).
+const kyDayRowYs = [
+  576.2, 561.2, 546.5, 531.5, 516.8, 501.8, 487.2, 472.5, 457.5, 442.8,
+  427.8, 413.2, 398.2, 383.5, 368.8, 353.8, 339.2, 324.5, 309.5, 294.8,
+  279.8, 265.2, 250.5, 235.5, 220.8, 205.8, 191.2, 176.2, 161.5, 146.5,
+  131.8, 117.2,
+];
+const kyNightRowYs = [
+  672.8, 660.2, 647.8, 635.2, 622.8, 610.2, 597.8, 585.2, 572.8, 560.2,
+  547.8, 535.2, 522.8, 510.2, 497.8, 485.2, 472.8, 460.2, 447.8, 435.2,
+  422.8, 410.2, 397.8, 385.2, 372.8, 360.2, 347.8, 335.2, 322.8, 310.2,
+  297.8, 285.2, 272.5,
+];
+
+// West Virginia's DMV-10-GDL rows: 10 blank rows on page 1 (after its 2
+// pre-printed "EXAMPLE" rows, which are burned into the page and not
+// fillable), then 12 more blank rows on page 2 — one continuous row pool
+// split across two pages, not a day/night split (see Kentucky), so each
+// entry is either a plain y (page 1, the `log.page` default) or a
+// `{ page, y }` pair naming page 2.
+const wvRowYs = [
+  366, 330, 294, 258, 222, 185.5, 149.5, 113.5, 77.5, 41.5,
+  { page: 1, y: 626 }, { page: 1, y: 590 }, { page: 1, y: 554.5 }, { page: 1, y: 518.5 },
+  { page: 1, y: 483 }, { page: 1, y: 447 }, { page: 1, y: 411.5 }, { page: 1, y: 375.5 },
+  { page: 1, y: 340 }, { page: 1, y: 304 }, { page: 1, y: 268.5 }, { page: 1, y: 232.5 },
 ];
 
 export const STATE_FORM_TEMPLATES = {
@@ -428,6 +684,240 @@ export const STATE_FORM_TEMPLATES = {
       'entirely blank — it records what was practiced and where, not just how long, which this ' +
       'app doesn’t track. The conviction and hours-certification questions are also left blank: ' +
       'they’re the parent’s own attestation under penalty of perjury, not the app’s to answer.',
+  },
+
+  IL: {
+    kind: 'acroform-log',
+    asset: 'forms/il-dsdx152.pdf',
+    formLabel: 'DSD X152 Practice Driving Log',
+    revision: '152.4, March 2026',
+    // No name field exists anywhere on this form — it's a bare practice
+    // chart attached to a covering letter, with nothing to identify the
+    // student beyond the log itself.
+    fields: [],
+    log: { rows: ilRows },
+    // The one other field on this document, a text field literally named
+    // "Signature of Parent, Guardian or Other Responsible Adult", is left
+    // blank on purpose — typing into it would be signing on the parent's
+    // behalf, the one thing this app must never do, regardless of what
+    // field type the state happened to publish it as.
+    leftBlank: ['Signature of Parent, Guardian or Other Responsible Adult'],
+    note: 'Location of Practice, Weather Conditions, and Initials are left blank on every row — the app records when a drive happened and how long, not where or in what weather.',
+  },
+
+  KS: {
+    kind: 'overlay-log',
+    asset: 'forms/ks-deib01.pdf',
+    formLabel: 'DE-IB01 Teen Driving Experience Log',
+    revision: '6/99',
+    overlay: [{ page: 0, x: 95, y: 732, size: 11, value: fullName }],
+    log: {
+      page: 0,
+      rowYs: ksRowYs,
+      size: 9,
+      fields: {
+        date: { x: 83 },
+        day: { x: 210 },
+        night: { x: 330 },
+        total: { x: 444 },
+      },
+    },
+    note:
+      'The certification, Parent/Guardian Signature, and Date at the bottom are left blank for ' +
+      'the parent to sign by hand.',
+  },
+
+  NC: {
+    kind: 'acroform-log',
+    asset: 'forms/nc-dl4a.pdf',
+    formLabel: 'DL-4A Driving Log to Advance to N.C. Level 2 Limited Provisional Driver License',
+    revision: '09/2011',
+    fields: [
+      { name: 'Customer Name', value: fullName },
+      // "I ____, do certify..." — the printed name of the supervising
+      // driver on the certification line, same as every other state's
+      // cover-page name field. The signature line right after it
+      // ("in accordance with N.C. G.S. 20-11(d), ____") is left blank.
+      { name: 'I', value: (ctx) => ctx.parentName },
+    ],
+    log: { rows: ncRows },
+    totals: {
+      day: 'To t a l Da y Ho u r s Driv en',
+      night: 'To t a l Ni g h t Ho u r s Dr iv e n',
+      total: 'Gr a n d To t a l',
+    },
+    leftBlank: ["Customers    DL Number", 'Supervising Driver’s DL'],
+    note:
+      'Every row’s Supervising Driver’s Printed Name and DL cell is left blank — the app doesn’t ' +
+      'record which specific supervising driver rode along on a given drive.',
+  },
+
+  NH: {
+    kind: 'acroform-log',
+    asset: 'forms/nh-dsmv509.pdf',
+    formLabel: 'DSMV 509 Certification of Additional Supervised Driving',
+    revision: 'Rev. 6/23',
+    fields: [{ name: 'Full Name of Driver', value: fullName }],
+    log: { rows: nhRows, cumulative: true },
+    totals: {
+      // "Total Time Logged" is the grand total across both pages; the
+      // per-page subtotals ("Total Time this/back page") are left blank —
+      // computing them correctly means knowing exactly which drives
+      // landed on which physical page, which the parent can total by hand
+      // faster than this app can reconstruct it.
+      total: 'Cumulative Hours Daytime  NighttimeTotal Time Logged',
+      night: 'Cumulative Hours Daytime  NighttimeTotal Time Logged_2',
+    },
+    leftBlank: ['Telephone', 'Address'],
+    note:
+      'Every row’s Skill Practiced and Parent/Guardian Initials cell is left blank, and both ' +
+      'pages’ per-page subtotals are left for the parent to total by hand — only the grand total ' +
+      'is filled.',
+  },
+
+  KY: {
+    kind: 'overlay-log',
+    asset: 'forms/ky-practicelog.pdf',
+    formLabel: 'Practice Driving Log',
+    revision: 'as published; unnumbered',
+    // No name field exists anywhere on this form.
+    log: {
+      tracks: {
+        day: { page: 0, rowYs: kyDayRowYs, columns: { date: { x: 93 }, hours: { x: 230 } } },
+        night: { page: 1, rowYs: kyNightRowYs, columns: { date: { x: 73 }, hours: { x: 227 } } },
+      },
+    },
+    leftBlank: ['Parent/Guardian Initials'],
+    note:
+      'Both signature lines (Applicant, Parent/Guardian) and the KSP License Examiner block are ' +
+      'left blank for signing in person, per the form’s own instructions.',
+  },
+
+  TN: {
+    kind: 'overlay',
+    asset: 'forms/tn-sf1256.pdf',
+    formLabel: 'SF-1256 Certification of 50 Hours Behind the Wheel Driving Experience',
+    revision: '02/13',
+    // Measured from the two "NAME OF ___" boxes at the top of the form.
+    overlay: [
+      { x: 60, y: 650, size: 10, value: fullName },
+      { x: 45, y: 584, size: 10, value: (ctx) => ctx.parentName },
+    ],
+    note:
+      'Only the permit holder’s and parent/guardian/instructor’s names are filled. Permit number, ' +
+      'Social Security numbers, addresses, and the signature/relationship line at the bottom are ' +
+      'left for the parent to complete by hand.',
+  },
+
+  WY: {
+    kind: 'acroform',
+    asset: 'forms/wy-fsgdl01.pdf',
+    formLabel: 'FSGDL-01 Behind-the-Wheel Driving Certification',
+    revision: '20190620',
+    fields: [
+      { name: 'Drivers Name', value: fullName },
+      { name: 'I', value: (ctx) => ctx.parentName },
+      { name: 'Total Daytime Driving Hours', value: dayHours },
+      { name: 'Total Nighttime Driving Hours', value: nightHours },
+      { name: 'Total Driving Hours', value: totalHours },
+    ],
+    leftBlank: ['Date of Birth', 'Driver License No'],
+    note:
+      'Date of birth and driver license number: the app collects neither. The signature and date ' +
+      'line at the bottom are left blank for the parent to sign.',
+  },
+
+  WV: {
+    kind: 'overlay-log',
+    asset: 'forms/wv-dmv10gdl.pdf',
+    formLabel: 'DMV-10-GDL 50-Hour Certification Log for Driver’s License Applicants Under Age 18',
+    revision: 'REV 09/14',
+    // The applicant's name line repeats at the top of each page — the
+    // form's own instructions say it may be photocopied for more rows.
+    overlay: [
+      { page: 0, x: 42, y: 579, size: 10, value: fullName },
+      { page: 1, x: 42, y: 709, size: 10, value: fullName },
+      // "I hereby certify that ___, who bears instruction permit number
+      // ___, has completed..." — only the certifying parent's name is
+      // filled; the permit number blank right after it is left empty.
+      { page: 1, x: 130, y: 161, size: 9, value: (ctx) => ctx.parentName },
+      { page: 1, x: 485, y: 189, size: 10, value: totalHours },
+    ],
+    log: {
+      page: 0,
+      rowYs: wvRowYs,
+      size: 9,
+      fields: {
+        date: { x: 42 },
+        day: { x: 334 },
+        night: { x: 411 },
+      },
+    },
+    note:
+      'Only the date and the Daytime/Nighttime hours columns are filled — Location of Practice, ' +
+      'Time Period, Weather Conditions, and the supervising adult’s initials are left for the ' +
+      'parent to complete by hand, as is the permit number and the signature/driver’s-license ' +
+      'line at the bottom.',
+  },
+
+  WA: {
+    kind: 'acroform',
+    asset: 'forms/wa-dle520003.pdf',
+    formLabel: 'DLE-520-003 Parental Authorization Affidavit',
+    revision: 'R4/25',
+    fields: [
+      { name: 'txtLastName', value: (ctx) => ctx.student.lastName },
+      { name: 'txtFirstName', value: (ctx) => ctx.student.firstName },
+    ],
+    // Middle name, suffix, and date of birth: the app collects none of
+    // these. The relationship checkbox, the permit-type checkboxes, the
+    // hours-certification checkbox, the driver license/ID box, and
+    // everything from "Licensing services representative" down (signature,
+    // date, and the notarization block) are all left for the parent — this
+    // affidavit exists specifically for signing in front of a notary when
+    // the parent can't be present in person, so those are not the app's to
+    // fill.
+    leftBlank: [
+      'txtMiddleName', 'txtSuffix', 'dob', 'dlIDnum', 'cert',
+      'appInsPerm', 'appDL', 'appMCperm', 'appMCend', 'certify hours',
+      'UserName', 'txtBadge', 'txtStationNum', 'txtCurrentDate', 'parentPic', 'parentLicenseState', 'printSign',
+    ],
+    note:
+      'This affidavit must be signed in front of a notary (or witnessed by a DMV agent) — it is ' +
+      'meant for when the authorized signer can’t be present in person, not a substitute for the ' +
+      'standard hours certification.',
+  },
+
+  AK: {
+    kind: 'acroform',
+    asset: 'forms/ak-form433.pdf',
+    formLabel: 'Form 433 Parent/Guardian Consent for a Minor',
+    revision: 'Rev. 08/28/2018',
+    // The PDF's own field names are each taken from the printed text right
+    // after the blank they belong to, not the blank's own label — "I,
+    // [Parent/Guardian's Name], hereby give my consent for" names the
+    // parent's-name field "hereby give my consent for", and likewise the
+    // applicant's-name field is named "whose date of birth is".
+    fields: [
+      { name: 'hereby give my consent for', value: (ctx) => ctx.parentName },
+      { name: 'whose date of birth is', value: fullName },
+    ],
+    // Date of birth ("to obtain", the field after the DOB blank): the app
+    // doesn't collect it. Which of the four license classes applies is a
+    // fact about the family, not the logged hours, so all four are left
+    // for the parent to mark themselves, as is everything below the
+    // consent paragraph — driver's license number, address, contact info,
+    // and the signature/notary block.
+    leftBlank: [
+      'to obtain',
+      'Alaska Drivers Instruction Permit Class IP', 'Alaska Provisional Drivers License Class D',
+      'Alaska Drivers License Class D', 'Alaska ATV  Snowmachine Drivers License Class R',
+      'Parents Drivers License', 'Issuing State', 'Your Relationship to Applicant',
+      'Your Mailing Address', 'Email', 'Phone',
+    ],
+    note:
+      'This is a consent-to-apply form, not a driving log — it must be signed in front of a notary ' +
+      'or DMV representative if the parent isn’t present in person, per the form’s own instructions.',
   },
 };
 

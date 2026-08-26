@@ -106,23 +106,69 @@ function fillLogRows(pdf, template, ctx, logs) {
 
   const sorted = [...logs].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   const capacity = rowFieldNames.length;
-  const rows = sorted.length > capacity ? sorted.slice(sorted.length - capacity) : sorted;
-  const omittedCount = Math.max(0, sorted.length - capacity);
 
-  rows.forEach((log, i) => {
+  // New Hampshire's DSMV 509 asks for running totals ("Cumulative Hours")
+  // rather than each row's own duration, so the day/night figures are
+  // computed over the FULL sorted history before any truncation — a row
+  // kept after older rows are dropped for space still shows the true
+  // cumulative total up to that point, not a total that silently resets.
+  let cumulativeDay = 0;
+  let cumulativeNight = 0;
+  const withCumulative = sorted.map((log) => {
+    if (log.timeOfDay === 'night') cumulativeNight += log.durationMinutes ?? 0;
+    else cumulativeDay += log.durationMinutes ?? 0;
+    return { log, cumulativeDay, cumulativeNight };
+  });
+
+  const rows =
+    withCumulative.length > capacity
+      ? withCumulative.slice(withCumulative.length - capacity)
+      : withCumulative;
+  const omittedCount = Math.max(0, withCumulative.length - capacity);
+
+  rows.forEach(({ log, cumulativeDay: day, cumulativeNight: night }, i) => {
     const names = rowFieldNames[i];
     trySet(names.date, formatLogDate(log));
-    const hours = formatLogHours(log.durationMinutes);
-    if (log.timeOfDay === 'night') {
-      trySet(names.night, hours);
+    if (names.start || names.end) {
+      const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+      if (names.start) trySet(names.start, formatClockTime(new Date(log.startTime), offset));
+      if (names.end) trySet(names.end, formatClockTime(new Date(log.endTime), offset));
+    }
+    if (template.log.cumulative) {
+      trySet(names.day, formatLogHours(day));
+      trySet(names.night, formatLogHours(night));
+    } else if (names.dayTime || names.nightTime) {
+      // North Carolina's DL-4A wants a clock-time stamp in whichever of
+      // "Time of Day"/"Time of Night" applies, plus an always-filled hours
+      // column — not a duration split across two hour cells like every
+      // other acroform-log here.
+      const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+      const stamp = formatClockTime(new Date(log.startTime), offset);
+      if (log.timeOfDay === 'night') {
+        if (names.nightTime) trySet(names.nightTime, stamp);
+      } else if (names.dayTime) {
+        trySet(names.dayTime, stamp);
+      }
+      if (names.hours) trySet(names.hours, formatLogHours(log.durationMinutes));
     } else {
-      trySet(names.day, hours);
+      const hours = formatLogHours(log.durationMinutes);
+      if (log.timeOfDay === 'night') {
+        trySet(names.night, hours);
+      } else {
+        trySet(names.day, hours);
+      }
     }
   });
 
   if (template.totals) {
     trySet(template.totals.total, formatLogHours(ctx.totals?.totalMinutes));
     trySet(template.totals.night, formatLogHours(ctx.totals?.nightMinutes));
+    if (template.totals.day) {
+      trySet(
+        template.totals.day,
+        formatLogHours((ctx.totals?.totalMinutes ?? 0) - (ctx.totals?.nightMinutes ?? 0))
+      );
+    }
   }
 
   return { missing, omittedCount };
@@ -180,16 +226,71 @@ function formatHoursWords(minutes) {
 // 'overlay-log' kind, told apart by which one the template sets.
 async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const size = template.log.size ?? 9;
+  const byTimeAsc = (a, b) => new Date(a.startTime) - new Date(b.startTime);
+
+  // Kentucky's Practice Driving Log takes the day/night split a step
+  // further than Nevada's: day and night aren't just separate columns, they
+  // are separate PAGES, each with its own row count and its own single
+  // Amount-of-Driving-Time column (no begin/end times at all). `tracks`
+  // covers that: each side of the split gets its own page, row positions,
+  // and column layout, rather than assuming both share one page and one
+  // rowYs array the way Nevada's `columns` shape does.
+  if (template.log.tracks) {
+    const pages = pdf.getPages();
+    const placeOnTrack = (log, y, trackPage, columns) => {
+      const offset = log.startOffsetMinutes ?? localOffsetMinutes();
+      const d = (text, x) => {
+        if (!text) return;
+        trackPage.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
+      };
+      if (columns.date) d(formatShortDate(log), columns.date.x);
+      if (columns.begin) d(formatClockTime(new Date(log.startTime), offset), columns.begin.x);
+      if (columns.end) d(formatClockTime(new Date(log.endTime), offset), columns.end.x);
+      if (columns.minutes) d(String(Math.round(log.durationMinutes ?? 0)), columns.minutes.x);
+      if (columns.hours) d(formatLogHours(log.durationMinutes), columns.hours.x);
+    };
+
+    const dayLogs = logs.filter((l) => l.timeOfDay !== 'night').sort(byTimeAsc);
+    const nightLogs = logs.filter((l) => l.timeOfDay === 'night').sort(byTimeAsc);
+    const dayCapacity = template.log.tracks.day.rowYs.length;
+    const nightCapacity = template.log.tracks.night.rowYs.length;
+
+    const dayRows =
+      dayLogs.length > dayCapacity ? dayLogs.slice(dayLogs.length - dayCapacity) : dayLogs;
+    const nightRows =
+      nightLogs.length > nightCapacity ? nightLogs.slice(nightLogs.length - nightCapacity) : nightLogs;
+    const omittedCount =
+      Math.max(0, dayLogs.length - dayCapacity) + Math.max(0, nightLogs.length - nightCapacity);
+
+    dayRows.forEach((log, i) =>
+      placeOnTrack(
+        log,
+        template.log.tracks.day.rowYs[i],
+        pages[template.log.tracks.day.page ?? 0],
+        template.log.tracks.day.columns
+      )
+    );
+    nightRows.forEach((log, i) =>
+      placeOnTrack(
+        log,
+        template.log.tracks.night.rowYs[i],
+        pages[template.log.tracks.night.page ?? 0],
+        template.log.tracks.night.columns
+      )
+    );
+
+    return { missing: [], omittedCount };
+  }
+
   const page = pdf.getPages()[template.log.page ?? 0];
   const rowYs = template.log.rowYs;
-  const size = template.log.size ?? 9;
 
   const draw = (text, x, y) => {
     if (!text) return;
     page.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
   };
 
-  const byTimeAsc = (a, b) => new Date(a.startTime) - new Date(b.startTime);
   const capacity = rowYs.length;
 
   if (template.log.fields) {
@@ -198,17 +299,45 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
     const omittedCount = Math.max(0, sorted.length - capacity);
     const fields = template.log.fields;
 
+    // Most single-pool forms fit their whole log on one page (Kansas,
+    // D.C.), but West Virginia's DMV-10-GDL runs the same row shape across
+    // two pages, so a row entry may be a plain y (this page) or a
+    // `{ page, y }` pair naming which page it belongs to.
+    const pages = pdf.getPages();
+    const rowOn = (entry) =>
+      typeof entry === 'number'
+        ? { rowPage: page, y: entry }
+        : { rowPage: pages[entry.page ?? template.log.page ?? 0], y: entry.y };
+
     rows.forEach((log, i) => {
-      const y = rowYs[i];
+      const { rowPage, y } = rowOn(rowYs[i]);
+      const drawRow = (text, x) => {
+        if (!text) return;
+        rowPage.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
+      };
       const offset = log.startOffsetMinutes ?? localOffsetMinutes();
-      if (fields.date) draw(formatShortDate(log), fields.date.x, y);
+      if (fields.date) drawRow(formatShortDate(log), fields.date.x);
       if (fields.time) {
         const range =
           `${formatClockTime(new Date(log.startTime), offset)} - ` +
           formatClockTime(new Date(log.endTime), offset);
-        draw(range, fields.time.x, y);
+        drawRow(range, fields.time.x);
       }
-      if (fields.hours) draw(formatHoursWords(log.durationMinutes), fields.hours.x, y);
+      if (fields.hours) drawRow(formatHoursWords(log.durationMinutes), fields.hours.x);
+      // A single pool of rows, but each has its own day-hours/night-hours
+      // cells (Kansas's DE-IB01) rather than one duration column (DC's
+      // GRAD-HR40) — a drive counts entirely as one or the other, same as
+      // every acroform-log, so only one of the two is ever filled, and
+      // Total mirrors whichever one that was.
+      if (fields.day || fields.night) {
+        const hours = formatLogHours(log.durationMinutes);
+        if (log.timeOfDay === 'night') {
+          if (fields.night) drawRow(hours, fields.night.x);
+        } else if (fields.day) {
+          drawRow(hours, fields.day.x);
+        }
+        if (fields.total) drawRow(hours, fields.total.x);
+      }
     });
 
     return { missing: [], omittedCount };
