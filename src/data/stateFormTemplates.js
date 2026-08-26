@@ -405,17 +405,20 @@ const wvRowYs = [
 // for the parent.
 // One entry per SKILL_CATEGORIES entry, in the same order — the TX form
 // lists its ten categories in exactly that order top to bottom.
+// unitMinutes is the pre-printed duration each row represents ("1 hour" or
+// "30 minutes" per the state's own text) — a row is only filled once the
+// student's tagged drives for that day/night pool cumulatively reach it.
 const TX_ROWS_BY_CATEGORY = [
-  { day: [651.8], night: [635.7] },
-  { day: [618.2, 604.2], night: [589.3] },
-  { day: [571.8], night: [557.7] },
-  { day: [540.2, 526.2, 511.3], night: [496.4] },
-  { day: [478.8, 464.9], night: [449.9] },
-  { day: [432.4], night: [418.4] },
-  { day: [400.8], night: [386.9] },
-  { day: [369.3, 355.3, 340.4], night: [325.5] },
-  { day: [308.0, 293.9, 279.0], night: [249.2] },
-  { day: [231.6, 217.6, 202.7], night: [172.8] },
+  { day: [651.8], night: [635.7], unitMinutes: 60 },
+  { day: [618.2, 604.2], night: [589.3], unitMinutes: 60 },
+  { day: [571.8], night: [557.7], unitMinutes: 30 },
+  { day: [540.2, 526.2, 511.3], night: [496.4], unitMinutes: 60 },
+  { day: [478.8, 464.9], night: [449.9], unitMinutes: 60 },
+  { day: [432.4], night: [418.4], unitMinutes: 30 },
+  { day: [400.8], night: [386.9], unitMinutes: 60 },
+  { day: [369.3, 355.3, 340.4], night: [325.5], unitMinutes: 60 },
+  { day: [308.0, 293.9, 279.0], night: [249.2], unitMinutes: 60 },
+  { day: [231.6, 217.6, 202.7], night: [172.8], unitMinutes: 60 },
 ];
 const txCategoryRows = SKILL_CATEGORIES.map((cat, i) => ({
   key: cat.key,
@@ -1033,7 +1036,9 @@ export const STATE_FORM_TEMPLATES = {
       'are left for the parent. Texas counts at most 2 hours of driving per calendar day (1 hour ' +
       'day, 1 hour night) toward the 30-hour requirement regardless of how much was actually ' +
       'driven — the app applies that same cap wherever it shows this student’s progress, not ' +
-      'just on this form.',
+      'just on this form. A row only appears once the cumulative time logged under that ' +
+      'category and day/night matches the row’s pre-printed duration (1 hour or 30 minutes); ' +
+      'the date and time shown are from the drive that completed it.',
   },
 
   MN: {
