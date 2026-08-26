@@ -456,10 +456,11 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
 // pre-printed duration (category.unitMinutes) — a row is only filled once
 // the running total reaches it, using the date/time of whichever drive
 // crossed the threshold (i.e. the most recent drive that contributed to
-// that row). A handful of rows ask for both a day amount and a night
-// amount in the same row (City Driving and Expressway/Freeway Driving each
-// have one) — there is no single drive that is both, so those rows are
-// left for the parent.
+// that row). City Driving and Expressway/Freeway Driving each have one
+// extra row asking for both a day amount and a night amount at once
+// (category.mixed) — it's filled only once both pools, continuing from
+// wherever their own single-sided rows above left off, separately reach
+// their own thresholds, using whichever side's drive completed later.
 function accumulateCategoryRows(sortedLogs, unitMinutes, capacity) {
   const rows = [];
   let cumulativeMinutes = 0;
@@ -475,7 +476,21 @@ function accumulateCategoryRows(sortedLogs, unitMinutes, capacity) {
     }
   }
 
-  return { rows, omitted: sortedLogs.length - consumed };
+  return { rows, consumed };
+}
+
+// Consumes from the front of sortedLogs until the running total reaches
+// thresholdMinutes; returns the completing log and how many logs it took,
+// or null if the pool runs out first.
+function accumulateThreshold(sortedLogs, thresholdMinutes) {
+  let cumulativeMinutes = 0;
+  for (let i = 0; i < sortedLogs.length; i += 1) {
+    cumulativeMinutes += sortedLogs[i].durationMinutes ?? 0;
+    if (cumulativeMinutes >= thresholdMinutes) {
+      return { log: sortedLogs[i], consumed: i + 1 };
+    }
+  }
+  return null;
 }
 
 async function drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }, logs) {
@@ -504,16 +519,34 @@ async function drawOverlayCategoryLog(pdf, template, ctx, { StandardFonts, rgb }
     const nightCapacity = category.night?.length ?? 0;
     const unitMinutes = category.unitMinutes ?? 60;
 
-    const { rows: dayRows, omitted: dayOmitted } = accumulateCategoryRows(
+    const { rows: dayRows, consumed: dayConsumed } = accumulateCategoryRows(
       dayLogs, unitMinutes, dayCapacity,
     );
-    const { rows: nightRows, omitted: nightOmitted } = accumulateCategoryRows(
+    const { rows: nightRows, consumed: nightConsumed } = accumulateCategoryRows(
       nightLogs, unitMinutes, nightCapacity,
     );
-    omittedCount += dayOmitted + nightOmitted;
-
     dayRows.forEach((log, i) => place(log, category.day[i]));
     nightRows.forEach((log, i) => place(log, category.night[i]));
+
+    let dayShown = dayConsumed;
+    let nightShown = nightConsumed;
+
+    if (category.mixed) {
+      const dayResult = accumulateThreshold(dayLogs.slice(dayConsumed), category.mixed.dayMinutes);
+      const nightResult = accumulateThreshold(nightLogs.slice(nightConsumed), category.mixed.nightMinutes);
+      if (dayResult && nightResult) {
+        const completingLog =
+          new Date(dayResult.log.startTime) >= new Date(nightResult.log.startTime)
+            ? dayResult.log
+            : nightResult.log;
+        place(completingLog, category.mixed.y);
+        dayShown += dayResult.consumed;
+        nightShown += nightResult.consumed;
+      }
+    }
+
+    if (dayRows.length >= dayCapacity) omittedCount += Math.max(0, dayLogs.length - dayShown);
+    if (nightRows.length >= nightCapacity) omittedCount += Math.max(0, nightLogs.length - nightShown);
   }
 
   return { missing: [], omittedCount };
