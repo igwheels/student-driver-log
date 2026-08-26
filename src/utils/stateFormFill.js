@@ -182,7 +182,7 @@ function fillLogRows(pdf, template, ctx, logs) {
 async function drawOverlay(pdf, template, ctx, { StandardFonts, rgb }) {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const pages = pdf.getPages();
-  for (const item of template.overlay) {
+  for (const item of template.overlay ?? []) {
     const value = item.value(ctx);
     if (!value) continue;
     pages[item.page ?? 0].drawText(String(value), {
