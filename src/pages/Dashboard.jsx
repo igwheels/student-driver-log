@@ -111,9 +111,18 @@ export default function Dashboard() {
       return;
     }
     try {
-      await exportFilledStateForm({ student, parentName: user?.name ?? '' });
+      const { omittedCount } = await exportFilledStateForm({
+        student,
+        parentName: user?.name ?? '',
+        logs,
+        totals: { totalMinutes, nightMinutes },
+      });
       setFormStatus(
-        `${stateFormLabel(student.state)} downloaded. Add anything the app can't know, then sign it by hand.`
+        `${stateFormLabel(student.state)} downloaded. Add anything the app can't know, then sign it by hand.` +
+          (omittedCount > 0
+            ? ` The form only has room for its most recent drives, so ${omittedCount} earlier ` +
+              `${omittedCount === 1 ? 'drive was' : 'drives were'} left off — download driving logs (CSV) for the complete record.`
+            : '')
       );
     } catch (e) {
       // The official form is the right document, so failing to produce it is
