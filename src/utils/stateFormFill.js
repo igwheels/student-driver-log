@@ -364,24 +364,30 @@ async function drawOverlayLog(pdf, template, ctx, { StandardFonts, rgb }, logs) 
     const sorted = [...logs].sort(byTimeAsc);
     const rows = sorted.length > capacity ? sorted.slice(sorted.length - capacity) : sorted;
     const omittedCount = Math.max(0, sorted.length - capacity);
-    const fields = template.log.fields;
 
     // Most single-pool forms fit their whole log on one page (Kansas,
     // D.C.), but West Virginia's DMV-10-GDL runs the same row shape across
     // two pages, so a row entry may be a plain y (this page) or a
     // `{ page, y }` pair naming which page it belongs to.
     const pages = pdf.getPages();
-    const rowOn = (entry) =>
-      typeof entry === 'number'
-        ? { rowPage: page, y: entry }
-        : { rowPage: pages[entry.page ?? template.log.page ?? 0], y: entry.y };
+    const rowOn = (entry) => {
+      const pageIndex = typeof entry === 'number' ? template.log.page ?? 0 : entry.page ?? template.log.page ?? 0;
+      const y = typeof entry === 'number' ? entry : entry.y;
+      return { rowPage: pages[pageIndex], pageIndex, y };
+    };
 
     rows.forEach((log, i) => {
-      const { rowPage, y } = rowOn(rowYs[i]);
+      const { rowPage, pageIndex, y } = rowOn(rowYs[i]);
       const drawRow = (text, x) => {
         if (!text) return;
         rowPage.drawText(text, { x, y, size, font, color: rgb(0, 0, 0) });
       };
+      // Maryland's RD-006 booklet alternates a margin banner between the
+      // left and right edge of the page, so the log grid itself sits at a
+      // different x on facing pages — `pageFields` picks the right column
+      // positions per page index, falling back to the single shared
+      // `fields` config every other overlay-log form uses.
+      const fields = template.log.pageFields?.[pageIndex] ?? template.log.fields;
       placeInFields(drawRow, fields, log);
     });
 
