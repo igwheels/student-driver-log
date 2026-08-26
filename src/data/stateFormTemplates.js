@@ -1122,6 +1122,9 @@ export const STATE_FORM_TEMPLATES = {
     asset: 'forms/md-rd006.pdf',
     formLabel: 'RD-006 New Driver & Coach Practice Guide — Practice Log',
     revision: 'New Driver & Coach Practice Guide',
+    // No cover-page overlay — the log pages are the whole document filled
+    // here; the certification page is left entirely blank (see note).
+    overlay: [],
     log: {
       page: 0,
       rowYs: mdRowYs,
