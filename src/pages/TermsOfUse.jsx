@@ -152,8 +152,8 @@ export default function TermsOfUse() {
 
       <h3>15. Contact</h3>
       <p>
-        Questions about these Terms may be directed to DevWorks LLC at the contact address published
-        with the Service.
+        Questions about these Terms may be directed to DevWorks LLC at{' '}
+        <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a>.
       </p>
     </div>
   );
