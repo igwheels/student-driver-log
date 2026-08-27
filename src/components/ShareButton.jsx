@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { getSharePlatform } from '../utils/device';
-import { shareContent } from '../utils/share';
+import { shareContent, hasNativeShare } from '../utils/share';
+import ShareLinksMenu from './ShareLinksMenu';
 
 function IOSShareIcon() {
   return (
@@ -37,25 +38,50 @@ function GenericShareIcon() {
 export default function ShareButton({ title, text, url }) {
   const platform = getSharePlatform();
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleShare = () =>
-    shareContent(
-      { title, text, url },
-      {
-        onCopied: () => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        },
-      }
-    );
+  const showCopiedToast = () => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // On a device with a native share sheet (Messages/Mail/social apps all
+  // already listed there), use it directly — the explicit email/SMS/
+  // WhatsApp menu only stands in where there's no sheet to open.
+  const handleTriggerClick = () => {
+    if (hasNativeShare()) {
+      shareContent({ title, text, url }, { onCopied: showCopiedToast });
+    } else {
+      setMenuOpen((v) => !v);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    setMenuOpen(false);
+    try {
+      await navigator.clipboard.writeText(url || window.location.href);
+      showCopiedToast();
+    } catch (err) {
+      console.error('Copy to clipboard failed:', err);
+    }
+  };
 
   const Icon = platform === 'ios' ? IOSShareIcon : platform === 'android' ? AndroidShareIcon : GenericShareIcon;
 
   return (
     <div className="share-btn-wrapper">
-      <button className="share-btn" onClick={handleShare} title="Share" aria-label="Share">
+      <button className="share-btn" onClick={handleTriggerClick} title="Share" aria-label="Share">
         <Icon />
       </button>
+      {menuOpen && (
+        <ShareLinksMenu
+          title={title}
+          text={text}
+          url={url}
+          onClose={() => setMenuOpen(false)}
+          onCopyLink={handleCopyLink}
+        />
+      )}
       {copied && <div className="share-toast">Link copied</div>}
     </div>
   );

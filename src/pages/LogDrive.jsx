@@ -3,7 +3,8 @@ import { useParams, useNavigate, useLocation, useSearchParams } from 'react-rout
 import { useApp } from '../context/AppContext';
 import { randomEncouragement } from '../data/encouragements';
 import DriveMap from '../components/DriveMap';
-import { shareContent } from '../utils/share';
+import ShareLinksMenu from '../components/ShareLinksMenu';
+import { shareContent, hasNativeShare } from '../utils/share';
 import { buildLogSnapshotUrl } from '../utils/snapshot';
 import { readPendingDrive, clearPendingDrive } from '../utils/pendingDrive';
 import {
@@ -92,6 +93,7 @@ export default function LogDrive() {
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [bragCopied, setBragCopied] = useState(false);
+  const [bragMenuOpen, setBragMenuOpen] = useState(false);
 
   // Texas's own log is organized around these ten skill categories rather
   // than a running date/duration grid, so it requires at least one tag per
@@ -172,8 +174,13 @@ export default function LogDrive() {
     navigate(`/dashboard/${studentId}`, { replace: true });
   };
 
-  const handleBrag = () => {
-    if (!student || !existingLog) return;
+  const showBragCopiedToast = () => {
+    setBragCopied(true);
+    setTimeout(() => setBragCopied(false), 2000);
+  };
+
+  const buildBragShareProps = () => {
+    if (!student || !existingLog) return null;
     // No location fields — see src/utils/snapshot.js for why a shareable
     // link deliberately carries no coordinates.
     const url = buildLogSnapshotUrl({
@@ -184,19 +191,35 @@ export default function LogDrive() {
       timeOfDay: existingLog.timeOfDay,
       distanceMiles: existingLog.distanceMiles,
     });
-    shareContent(
-      {
-        title: `${student.firstName}'s drive`,
-        text: `${student.firstName} just completed another drive!`,
-        url,
-      },
-      {
-        onCopied: () => {
-          setBragCopied(true);
-          setTimeout(() => setBragCopied(false), 2000);
-        },
-      }
-    );
+    return {
+      title: `${student.firstName}'s drive`,
+      text: `${student.firstName} just completed another drive!`,
+      url,
+    };
+  };
+
+  // On a device with a native share sheet, use it directly — the explicit
+  // email/SMS/WhatsApp menu only stands in where there's no sheet to open.
+  const handleBrag = () => {
+    const shareProps = buildBragShareProps();
+    if (!shareProps) return;
+    if (hasNativeShare()) {
+      shareContent(shareProps, { onCopied: showBragCopiedToast });
+    } else {
+      setBragMenuOpen((v) => !v);
+    }
+  };
+
+  const handleBragCopyLink = async () => {
+    setBragMenuOpen(false);
+    const shareProps = buildBragShareProps();
+    if (!shareProps) return;
+    try {
+      await navigator.clipboard.writeText(shareProps.url);
+      showBragCopiedToast();
+    } catch (err) {
+      console.error('Copy to clipboard failed:', err);
+    }
   };
 
   return (
@@ -313,9 +336,18 @@ export default function LogDrive() {
 
         {isEditing && existingLog && (
           <>
-            <button type="button" className="btn btn-outline" style={{ marginTop: 24 }} onClick={handleBrag}>
-              Brag on your student
-            </button>
+            <div style={{ position: 'relative', marginTop: 24 }}>
+              <button type="button" className="btn btn-outline" onClick={handleBrag}>
+                Brag on your student
+              </button>
+              {bragMenuOpen && (
+                <ShareLinksMenu
+                  {...buildBragShareProps()}
+                  onClose={() => setBragMenuOpen(false)}
+                  onCopyLink={handleBragCopyLink}
+                />
+              )}
+            </div>
             {bragCopied && (
               <p style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>Link copied</p>
             )}
