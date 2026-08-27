@@ -184,13 +184,19 @@ async function main() {
       </div>`;
 
     // Resend attachments take base64-encoded content (not a raw Buffer) and
-    // a content_id for each cid: reference in the HTML above, same idea as
-    // most providers' inline-image support — no separate disposition field
-    // needed the way SendGrid required.
+    // a contentId for each cid: reference in the HTML above — camelCase,
+    // per the Resend Node SDK's Attachment type (node_modules/resend/dist/
+    // index.d.mts), unlike the snake_case content_id/content_type most
+    // other providers' REST APIs use. This file has no compile-time type
+    // checking, so a wrong field name here fails silently: the SDK just
+    // drops the unrecognized key and Resend ships the image as a normal
+    // (non-inline) attachment instead of erroring — exactly what happened
+    // the first time this used content_id.
     const toInlineAttachment = (filename, buffer, contentId) => ({
       filename,
       content: buffer.toString('base64'),
-      content_id: contentId,
+      contentType: 'image/png',
+      contentId,
     });
     const attachments = [toInlineAttachment('gauge-total.png', totalGaugePng, 'gaugetotal')];
     if (nightGaugePng) attachments.push(toInlineAttachment('gauge-night.png', nightGaugePng, 'gaugenight'));
