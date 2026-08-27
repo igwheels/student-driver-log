@@ -64,7 +64,7 @@ Note that rules cannot inspect a query's filters — they authorize the operatio
 
 A student's owner can share their dashboard with another parent/guardian by email from the student's dashboard (**Share** button). Access is enforced by Firestore security rules matching the signed-in user's email against the student's `sharedWithEmails` list, so it takes effect the instant the recipient is signed in with that email — whether they already had an account or just created one. Shared users can view the dashboard, add/delete drives, and export the PDF log, but can't edit the student's name/state or delete the student. Unsharing removes future access but keeps any drives that user logged.
 
-A GitHub Actions workflow (`send-invitations.yml`, same Gmail setup as the weekly emails) emails the recipient a link every ~15 minutes for any pending shares, so they know to sign in or create an account.
+A GitHub Actions workflow (`send-invitations.yml`, same SendGrid setup as the weekly emails) emails the recipient a link every ~15 minutes for any pending shares, so they know to sign in or create an account.
 
 **One-time setup after adding this feature to an existing deployment:**
 

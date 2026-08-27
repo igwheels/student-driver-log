@@ -1,30 +1,29 @@
 /**
  * Sends "a student was shared with you" emails — run by
  * .github/workflows/send-invitations.yml on a short schedule via GitHub
- * Actions (same Gmail/Nodemailer setup as the weekly progress emails, no
- * extra service required).
+ * Actions (same SendGrid setup as the weekly progress emails, no separately
+ * running server required).
  *
  * Sharing itself already takes effect the moment the recipient signs in with
  * the shared email (see shareStudent in src/context/AppContext.jsx) — this
  * script just notifies them, whether they have an account yet or not.
  *
- * Requires repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), GMAIL_EMAIL, GMAIL_APP_PASSWORD
+ * Requires repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), SENDGRID_API_KEY
  */
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import { generateInvitationEmailContent } from '../src/utils/invitations.js';
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 initializeApp({ credential: cert(serviceAccount) });
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_EMAIL,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// SendGrid requires the sender to be a domain-authenticated (or single
+// sender verified) address — see the SendGrid dashboard's Sender
+// Authentication section for devworksllc.com's setup.
+const FROM_EMAIL = 'ian@devworksllc.com';
 
 const APP_URL = process.env.APP_URL || 'https://sdl.devworksllc.com/';
 
@@ -41,10 +40,10 @@ async function main() {
     pending.docs.map(async (docSnap) => {
       const invitation = docSnap.data();
       const { subject, text, html } = generateInvitationEmailContent(invitation, APP_URL);
-      await transporter.sendMail({
+      await sgMail.send({
         to: invitation.email,
-        from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
-        replyTo: process.env.GMAIL_EMAIL,
+        from: { email: FROM_EMAIL, name: 'Student Driver Log' },
+        replyTo: FROM_EMAIL,
         subject,
         text,
         html,

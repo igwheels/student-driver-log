@@ -13,7 +13,7 @@
  *
  * Requires:
  *   - Firestore mirroring the app's students + logs
- *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), GMAIL_EMAIL, GMAIL_APP_PASSWORD
+ *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), SENDGRID_API_KEY
  *
  * Student names and drive fields come from user input and land in an HTML
  * body delivered to everyone with access to the dashboard, so every value
@@ -31,7 +31,7 @@
  */
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import { STATE_REQUIREMENTS } from '../src/data/stateRequirements.js';
 import { renderRouteMapPng, renderGaugePng } from './lib/staticImages.js';
 import { escapeHtml, sanitizeHeader } from '../src/utils/escapeHtml.js';
@@ -39,13 +39,12 @@ import { escapeHtml, sanitizeHeader } from '../src/utils/escapeHtml.js';
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 initializeApp({ credential: cert(serviceAccount) });
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_EMAIL,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// SendGrid requires the sender to be a domain-authenticated (or single
+// sender verified) address — see the SendGrid dashboard's Sender
+// Authentication section for devworksllc.com's setup.
+const FROM_EMAIL = 'ian@devworksllc.com';
 
 const APP_URL = process.env.APP_URL || 'https://sdl.devworksllc.com/';
 const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -185,19 +184,29 @@ async function main() {
         ${nightGaugePng ? '<img src="cid:gaugenight" width="180" style="display:inline-block;margin:0 10px;" alt="Night hours gauge" />' : ''}
       </div>`;
 
-    const attachments = [{ filename: 'gauge-total.png', content: totalGaugePng, cid: 'gaugetotal' }];
-    if (nightGaugePng) attachments.push({ filename: 'gauge-night.png', content: nightGaugePng, cid: 'gaugenight' });
+    // SendGrid attachments take base64-encoded content (not a raw Buffer)
+    // and use content_id/disposition rather than nodemailer's cid — the
+    // cid: references in the HTML above stay the same either way.
+    const toInlineAttachment = (filename, buffer, contentId) => ({
+      filename,
+      content: buffer.toString('base64'),
+      type: 'image/png',
+      disposition: 'inline',
+      content_id: contentId,
+    });
+    const attachments = [toInlineAttachment('gauge-total.png', totalGaugePng, 'gaugetotal')];
+    if (nightGaugePng) attachments.push(toInlineAttachment('gauge-night.png', nightGaugePng, 'gaugenight'));
     driveMapPngs.forEach((png, i) => {
-      if (png) attachments.push({ filename: `drive-map-${i}.png`, content: png, cid: `drivemap${i}` });
+      if (png) attachments.push(toInlineAttachment(`drive-map-${i}.png`, png, `drivemap${i}`));
     });
 
     for (const to of recipients) {
       const unsubUrl = unsubscribeUrl(to);
       sends.push(
-        transporter.sendMail({
+        sgMail.send({
           to,
-          from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
-          replyTo: process.env.GMAIL_EMAIL,
+          from: { email: FROM_EMAIL, name: 'Student Driver Log' },
+          replyTo: FROM_EMAIL,
           subject: sanitizeHeader(`🚗 ${student.firstName}'s Weekly Driving Progress`),
           text: `${student.firstName}'s Weekly Driving Progress
 
