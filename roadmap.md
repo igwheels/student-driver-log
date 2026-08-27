@@ -125,23 +125,60 @@ All of the following shipped:
    `emailPreferences/{email}` mechanism so a parent can still silence a
    student's weekly email without the student needing to sign in.
 
-## Phase 2 — Kick off immediately because of lead time (not started)
+## Phase 2 — Kick off immediately because of lead time (IN PROGRESS)
 
 **Goal:** Start the slow, external, non-technical clocks as early as possible.
 
-6. **Apple Developer Program enrollment**
-   - Paid, $99/yr, requires **D-U-N-S number verification for DevWorks LLC**
-     as an organization. Commonly takes 1–3+ weeks, longer if a D-U-N-S
-     number doesn't already exist for the LLC. Start this the day the owner
-     commits to the App Store, independent of code readiness — this is very
-     likely the single longest pole in the entire roadmap.
-   - Decide organization-type enrollment (not individual) since the app is
-     published under DevWorks LLC.
+This phase is 100% account setup and identity verification — there is no
+code involved, and it can't be automated: enrollment requires DevWorks LLC's
+legal/business details, a payment method, and identity documents only the
+owner can provide. This is an action checklist for the owner to work through
+directly on Apple's and Google's sites, not an implementation task.
 
-7. **Google Play Console enrollment**
-   - $25 one-time, identity verification only, typically days not weeks.
-     Start in parallel with Apple — cheap, low-risk, removes a dependency
-     for later.
+6. **Apple Developer Program enrollment** — start today, this is the
+   longest pole in the whole roadmap.
+   - Check whether DevWorks LLC already has a **D-U-N-S number** at
+     https://developer.apple.com/support/D-U-N-S/ (Apple's own lookup tool,
+     via Dun & Bradstreet). If one doesn't exist, request it there —
+     Apple's free expedited request usually resolves in about 5 business
+     days, but can occasionally take longer; this is the step most likely
+     to become the bottleneck, so kick it off first, before anything else
+     in Phase 2.
+   - Once the D-U-N-S number resolves, enroll at
+     https://developer.apple.com/programs/enroll/ as an **Organization**
+     (not Individual), using DevWorks LLC's legal name exactly as it
+     appears in D-U-N-S records — mismatches are the most common cause of
+     enrollment rejection.
+   - Have ready: DevWorks LLC's legal entity name, D-U-N-S number, a
+     company website or web presence (worth having `sdl.devworksllc.com`
+     live before applying — it already is, per Phase 1), a company email
+     at the DevWorks LLC domain (`ian@devworksllc.com` already exists),
+     and legal signing authority for the LLC (as owner, this should already
+     be true).
+   - $99/year, charged after enrollment is approved.
+   - Apple verifies the enrollment by phone — watch for a call and be
+     ready to confirm company details.
+
+7. **Google Play Console enrollment** — start in parallel with Apple, cheap
+   and fast, removes a dependency early.
+   - Enroll at https://play.google.com/console/signup as an
+     **Organization** account (not individual), using DevWorks LLC as the
+     developer entity — this determines what shows as the publisher on the
+     Play Store listing, so get this right at signup rather than changing
+     it later.
+   - $25 one-time registration fee.
+   - Identity verification (D-U-N-S is NOT required for Google — Google
+     verifies organizations through its own process, typically a
+     combination of business documents and/or a verification call)
+     typically completes in a few days, occasionally up to ~2 weeks.
+   - Have ready: DevWorks LLC's legal name and business address, a
+     government-issued ID for the account owner, and a payment method for
+     the $25 fee.
+
+**When both are approved:** Phase 3 (Capacitor wrapper) doesn't block on
+this, but Phase 5 (store submission) can't start until both accounts are
+active. No code changes happen in this repo as part of Phase 2; the next
+actionable *code* work is Phase 3.
 
 ## Phase 3 — Capacitor wrapper (not started)
 
