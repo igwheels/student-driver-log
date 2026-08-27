@@ -26,7 +26,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const APP_URL = process.env.APP_URL || 'https://igwheels.github.io/student-driver-log/';
+const APP_URL = process.env.APP_URL || 'https://sdl.devworksllc.com/';
 
 async function main() {
   const db = getFirestore();

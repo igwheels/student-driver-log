@@ -28,6 +28,8 @@ npm run dev        # http://localhost:5173
 4. Push to `main`. `.github/workflows/deploy.yml` builds the app with Vite and publishes `dist/` to Pages automatically on every push.
 5. Your app will be live at `https://yourname.github.io/your-repo-name/`.
 
+**Using a custom domain instead:** add a `public/CNAME` file containing just your domain (e.g. `app.example.com`), set `base: '/'` in `vite.config.js` regardless of repo name (a custom domain serves from the root, not a project-site subpath), add a DNS `CNAME` record for that subdomain pointing at `yourname.github.io`, and enable "Enforce HTTPS" in **Settings → Pages** once the certificate issues.
+
 ## Wiring up production auth (Firebase)
 
 1. Create a Firebase project → enable **Authentication** (Email/Password, Google) and **Firestore**.
