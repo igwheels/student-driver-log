@@ -216,7 +216,7 @@ export default function PrivacyPolicy() {
       <h3>13. Contact</h3>
       <p>
         Questions about this Privacy Policy, or requests regarding a student driver's information,
-        may be directed to DevWorks LLC at the contact address published with the Service.
+        may be directed to DevWorks LLC at <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a>.
       </p>
     </div>
   );
