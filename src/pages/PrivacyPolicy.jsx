@@ -129,7 +129,7 @@ export default function PrivacyPolicy() {
           <strong>Google Analytics</strong> — usage analytics
         </li>
         <li>
-          <strong>Gmail</strong> — delivery of weekly progress emails and sharing invitations
+          <strong>Resend</strong> — delivery of weekly progress emails and sharing invitations
         </li>
         <li>
           <strong>GitHub Pages</strong> — website hosting
