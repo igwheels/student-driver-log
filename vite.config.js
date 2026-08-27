@@ -18,13 +18,13 @@ const buildId = (() => {
   return `${commit} · ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 })();
 
-// IMPORTANT: base must match your GitHub repo name for project-site Pages
-// (e.g. https://yourname.github.io/student-driver-log/).
-// If you're deploying to a user/org site (yourname.github.io) instead,
-// set base back to '/'.
+// Served at the sdl.devworksllc.com custom domain (see public/CNAME) rather
+// than the GitHub Pages project-site path, so assets resolve from the root.
+// Revert to '/student-driver-log/' if the custom domain is ever removed and
+// this falls back to the project-site URL.
 export default defineConfig({
   plugins: [react()],
-  base: '/student-driver-log/',
+  base: '/',
   define: {
     __BUILD_ID__: JSON.stringify(buildId),
   },

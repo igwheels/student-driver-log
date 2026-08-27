@@ -47,7 +47,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const APP_URL = process.env.APP_URL || 'https://igwheels.github.io/student-driver-log/';
+const APP_URL = process.env.APP_URL || 'https://sdl.devworksllc.com/';
 const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const fmt = (mins) => `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;

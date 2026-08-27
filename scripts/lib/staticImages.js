@@ -9,7 +9,7 @@
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 
 const TILE_SIZE = 256;
-const USER_AGENT = 'StudentDriverLogWeeklyEmail/1.0 (+https://igwheels.github.io/student-driver-log/)';
+const USER_AGENT = 'StudentDriverLogWeeklyEmail/1.0 (+https://sdl.devworksllc.com/)';
 
 function lonToPx(lon, zoom) {
   return ((lon + 180) / 360) * TILE_SIZE * 2 ** zoom;
