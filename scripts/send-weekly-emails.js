@@ -13,7 +13,7 @@
  *
  * Requires:
  *   - Firestore mirroring the app's students + logs
- *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), SENDGRID_API_KEY
+ *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), RESEND_API_KEY
  *
  * Student names and drive fields come from user input and land in an HTML
  * body delivered to everyone with access to the dashboard, so every value
@@ -31,7 +31,7 @@
  */
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import sgMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 import { STATE_REQUIREMENTS } from '../src/data/stateRequirements.js';
 import { renderRouteMapPng, renderGaugePng } from './lib/staticImages.js';
 import { escapeHtml, sanitizeHeader } from '../src/utils/escapeHtml.js';
@@ -39,11 +39,10 @@ import { escapeHtml, sanitizeHeader } from '../src/utils/escapeHtml.js';
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 initializeApp({ credential: cert(serviceAccount) });
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// SendGrid requires the sender to be a domain-authenticated (or single
-// sender verified) address — see the SendGrid dashboard's Sender
-// Authentication section for devworksllc.com's setup.
+// Resend requires the sender to be a domain-verified address — see the
+// Resend dashboard's Domains section for devworksllc.com's setup.
 const FROM_EMAIL = 'ian@devworksllc.com';
 
 const APP_URL = process.env.APP_URL || 'https://sdl.devworksllc.com/';
@@ -184,14 +183,13 @@ async function main() {
         ${nightGaugePng ? '<img src="cid:gaugenight" width="180" style="display:inline-block;margin:0 10px;" alt="Night hours gauge" />' : ''}
       </div>`;
 
-    // SendGrid attachments take base64-encoded content (not a raw Buffer)
-    // and use content_id/disposition rather than nodemailer's cid — the
-    // cid: references in the HTML above stay the same either way.
+    // Resend attachments take base64-encoded content (not a raw Buffer) and
+    // a content_id for each cid: reference in the HTML above, same idea as
+    // most providers' inline-image support — no separate disposition field
+    // needed the way SendGrid required.
     const toInlineAttachment = (filename, buffer, contentId) => ({
       filename,
       content: buffer.toString('base64'),
-      type: 'image/png',
-      disposition: 'inline',
       content_id: contentId,
     });
     const attachments = [toInlineAttachment('gauge-total.png', totalGaugePng, 'gaugetotal')];
@@ -203,12 +201,13 @@ async function main() {
     for (const to of recipients) {
       const unsubUrl = unsubscribeUrl(to);
       sends.push(
-        sgMail.send({
-          to,
-          from: { email: FROM_EMAIL, name: 'Student Driver Log' },
-          replyTo: FROM_EMAIL,
-          subject: sanitizeHeader(`🚗 ${student.firstName}'s Weekly Driving Progress`),
-          text: `${student.firstName}'s Weekly Driving Progress
+        (async () => {
+          const { error } = await resend.emails.send({
+            to,
+            from: `Student Driver Log <${FROM_EMAIL}>`,
+            replyTo: FROM_EMAIL,
+            subject: sanitizeHeader(`🚗 ${student.firstName}'s Weekly Driving Progress`),
+            text: `${student.firstName}'s Weekly Driving Progress
 
 Total supervised hours: ${fmt(total)}
 Night hours: ${fmt(night)}
@@ -221,19 +220,21 @@ Keep up the great work!
 
 ---
 Unsubscribe from weekly progress emails: ${unsubUrl}`,
-          html: `
-            <h2>${escapeHtml(student.firstName)}'s Weekly Driving Progress</h2>
-            ${gaugesHtmlBlock}
-            <p>${escapeHtml(progressLine)}</p>
-            <h3 style="margin-top:24px;">Drives since your last update</h3>
-            ${driveHtmlBlock}
-            <p>Keep up the great work! 🏁</p>
-            <hr style="border:none;border-top:1px solid #DBE0EA;margin:24px 0 12px;" />
-            <p style="color:#7C86A0;font-size:12px;">
-              <a href="${escapeHtml(unsubUrl)}" style="color:#7C86A0;">Unsubscribe from weekly progress emails</a>
-            </p>`,
-          attachments,
-        })
+            html: `
+              <h2>${escapeHtml(student.firstName)}'s Weekly Driving Progress</h2>
+              ${gaugesHtmlBlock}
+              <p>${escapeHtml(progressLine)}</p>
+              <h3 style="margin-top:24px;">Drives since your last update</h3>
+              ${driveHtmlBlock}
+              <p>Keep up the great work! 🏁</p>
+              <hr style="border:none;border-top:1px solid #DBE0EA;margin:24px 0 12px;" />
+              <p style="color:#7C86A0;font-size:12px;">
+                <a href="${escapeHtml(unsubUrl)}" style="color:#7C86A0;">Unsubscribe from weekly progress emails</a>
+              </p>`,
+            attachments,
+          });
+          if (error) throw new Error(error.message || 'Resend send failed');
+        })()
       );
     }
 

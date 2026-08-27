@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.7",
-    "@sendgrid/mail": "^8.1.4",
     "firebase": "^11.0.0",
     "firebase-admin": "^14.2.0",
     "jspdf": "^4.2.1",
@@ -19,7 +18,8 @@
     "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "resend": "^6.24.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
