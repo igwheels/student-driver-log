@@ -41,10 +41,10 @@ npm run dev        # http://localhost:5173
 
 ## Weekly progress emails
 
-GitHub Pages only serves static files — it can't run scheduled jobs. Instead, `.github/workflows/weekly-emails.yml` runs a scheduled **GitHub Actions workflow** every Monday that executes `scripts/send-weekly-emails.js`, which reads Firestore and sends emails via SendGrid. Add these as repo secrets under **Settings → Secrets and variables → Actions**:
+GitHub Pages only serves static files — it can't run scheduled jobs. Instead, `.github/workflows/weekly-emails.yml` runs a scheduled **GitHub Actions workflow** every Monday that executes `scripts/send-weekly-emails.js`, which reads Firestore and sends emails via Resend. Add these as repo secrets under **Settings → Secrets and variables → Actions**:
 
 - `FIREBASE_SERVICE_ACCOUNT` — JSON key for a Firebase service account with Firestore read access
-- `SENDGRID_API_KEY` — from your SendGrid account (verify a sender domain first)
+- `RESEND_API_KEY` — from your Resend account (verify a sender domain first)
 
 Since student drivers are typically minors, keep these emails strictly transactional (progress only, no marketing) and get parent consent at signup.
 
@@ -64,7 +64,7 @@ Note that rules cannot inspect a query's filters — they authorize the operatio
 
 A student's owner can share their dashboard with another parent/guardian by email from the student's dashboard (**Share** button). Access is enforced by Firestore security rules matching the signed-in user's email against the student's `sharedWithEmails` list, so it takes effect the instant the recipient is signed in with that email — whether they already had an account or just created one. Shared users can view the dashboard, add/delete drives, and export the PDF log, but can't edit the student's name/state or delete the student. Unsharing removes future access but keeps any drives that user logged.
 
-A GitHub Actions workflow (`send-invitations.yml`, same Gmail setup as the weekly emails) emails the recipient a link every ~15 minutes for any pending shares, so they know to sign in or create an account.
+A GitHub Actions workflow (`send-invitations.yml`, same Resend setup as the weekly emails) emails the recipient a link every ~15 minutes for any pending shares, so they know to sign in or create an account.
 
 **One-time setup after adding this feature to an existing deployment:**
 

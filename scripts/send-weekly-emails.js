@@ -13,7 +13,7 @@
  *
  * Requires:
  *   - Firestore mirroring the app's students + logs
- *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), GMAIL_EMAIL, GMAIL_APP_PASSWORD
+ *   - Repo secrets: FIREBASE_SERVICE_ACCOUNT (JSON), RESEND_API_KEY
  *
  * Student names and drive fields come from user input and land in an HTML
  * body delivered to everyone with access to the dashboard, so every value
@@ -31,7 +31,7 @@
  */
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { STATE_REQUIREMENTS } from '../src/data/stateRequirements.js';
 import { renderRouteMapPng, renderGaugePng } from './lib/staticImages.js';
 import { escapeHtml, sanitizeHeader } from '../src/utils/escapeHtml.js';
@@ -39,13 +39,11 @@ import { escapeHtml, sanitizeHeader } from '../src/utils/escapeHtml.js';
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 initializeApp({ credential: cert(serviceAccount) });
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_EMAIL,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Resend requires the sender to be a domain-verified address — see the
+// Resend dashboard's Domains section for devworksllc.com's setup.
+const FROM_EMAIL = 'ian@devworksllc.com';
 
 const APP_URL = process.env.APP_URL || 'https://sdl.devworksllc.com/';
 const DEFAULT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -185,21 +183,31 @@ async function main() {
         ${nightGaugePng ? '<img src="cid:gaugenight" width="180" style="display:inline-block;margin:0 10px;" alt="Night hours gauge" />' : ''}
       </div>`;
 
-    const attachments = [{ filename: 'gauge-total.png', content: totalGaugePng, cid: 'gaugetotal' }];
-    if (nightGaugePng) attachments.push({ filename: 'gauge-night.png', content: nightGaugePng, cid: 'gaugenight' });
+    // Resend attachments take base64-encoded content (not a raw Buffer) and
+    // a content_id for each cid: reference in the HTML above, same idea as
+    // most providers' inline-image support — no separate disposition field
+    // needed the way SendGrid required.
+    const toInlineAttachment = (filename, buffer, contentId) => ({
+      filename,
+      content: buffer.toString('base64'),
+      content_id: contentId,
+    });
+    const attachments = [toInlineAttachment('gauge-total.png', totalGaugePng, 'gaugetotal')];
+    if (nightGaugePng) attachments.push(toInlineAttachment('gauge-night.png', nightGaugePng, 'gaugenight'));
     driveMapPngs.forEach((png, i) => {
-      if (png) attachments.push({ filename: `drive-map-${i}.png`, content: png, cid: `drivemap${i}` });
+      if (png) attachments.push(toInlineAttachment(`drive-map-${i}.png`, png, `drivemap${i}`));
     });
 
     for (const to of recipients) {
       const unsubUrl = unsubscribeUrl(to);
       sends.push(
-        transporter.sendMail({
-          to,
-          from: `"Student Driver Log" <${process.env.GMAIL_EMAIL}>`,
-          replyTo: process.env.GMAIL_EMAIL,
-          subject: sanitizeHeader(`🚗 ${student.firstName}'s Weekly Driving Progress`),
-          text: `${student.firstName}'s Weekly Driving Progress
+        (async () => {
+          const { error } = await resend.emails.send({
+            to,
+            from: `Student Driver Log <${FROM_EMAIL}>`,
+            replyTo: FROM_EMAIL,
+            subject: sanitizeHeader(`🚗 ${student.firstName}'s Weekly Driving Progress`),
+            text: `${student.firstName}'s Weekly Driving Progress
 
 Total supervised hours: ${fmt(total)}
 Night hours: ${fmt(night)}
@@ -212,19 +220,21 @@ Keep up the great work!
 
 ---
 Unsubscribe from weekly progress emails: ${unsubUrl}`,
-          html: `
-            <h2>${escapeHtml(student.firstName)}'s Weekly Driving Progress</h2>
-            ${gaugesHtmlBlock}
-            <p>${escapeHtml(progressLine)}</p>
-            <h3 style="margin-top:24px;">Drives since your last update</h3>
-            ${driveHtmlBlock}
-            <p>Keep up the great work! 🏁</p>
-            <hr style="border:none;border-top:1px solid #DBE0EA;margin:24px 0 12px;" />
-            <p style="color:#7C86A0;font-size:12px;">
-              <a href="${escapeHtml(unsubUrl)}" style="color:#7C86A0;">Unsubscribe from weekly progress emails</a>
-            </p>`,
-          attachments,
-        })
+            html: `
+              <h2>${escapeHtml(student.firstName)}'s Weekly Driving Progress</h2>
+              ${gaugesHtmlBlock}
+              <p>${escapeHtml(progressLine)}</p>
+              <h3 style="margin-top:24px;">Drives since your last update</h3>
+              ${driveHtmlBlock}
+              <p>Keep up the great work! 🏁</p>
+              <hr style="border:none;border-top:1px solid #DBE0EA;margin:24px 0 12px;" />
+              <p style="color:#7C86A0;font-size:12px;">
+                <a href="${escapeHtml(unsubUrl)}" style="color:#7C86A0;">Unsubscribe from weekly progress emails</a>
+              </p>`,
+            attachments,
+          });
+          if (error) throw new Error(error.message || 'Resend send failed');
+        })()
       );
     }
 
