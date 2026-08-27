@@ -20,29 +20,6 @@ service cloud.firestore {
       return studentData.sharedWithEmails is list && myEmail() in studentData.sharedWithEmails;
     }
 
-    // The student reading their own dashboard. studentLoginEmail is present
-    // only when the owner has explicitly turned student access on for that
-    // student (Manage students → "Let this student sign in"), and holds the
-    // address it was granted to. One field carries both facts, so this is a
-    // single equality check — and the discovery query below needs only a
-    // single-field index rather than a composite one.
-    //
-    // Deliberately NOT derived from the student's `email` field: that address
-    // is on file for progress emails, and an owner typo there would otherwise
-    // silently hand a stranger read access to a minor's full drive history.
-    // Access has to be turned on deliberately.
-    //
-    // email_verified is required here and nowhere else. This is the one path
-    // where access is granted purely on the basis of an address someone typed
-    // into a form, so proof that the holder controls that inbox is the whole
-    // security model. Google sign-ins arrive verified; email/password ones
-    // verify via the link sent at sign-up.
-    function isStudentSelf(studentData) {
-      return studentData.studentLoginEmail is string &&
-        studentData.studentLoginEmail == myEmail() &&
-        request.auth.token.email_verified == true;
-    }
-
     // ---------------------------------------------------------------------
     // emailPreferences/{email} -> { weeklyEmailOptOut, updatedAt }
     //
@@ -162,24 +139,15 @@ service cloud.firestore {
     match /users/{ownerId}/students/{studentId} {
       allow read: if signedIn() &&
         (request.auth.uid == ownerId ||
-         isSharedWithMe(resource.data) ||
-         isStudentSelf(resource.data));
+         isSharedWithMe(resource.data));
       allow create, update: if signedIn() &&
         request.auth.uid == ownerId &&
         request.resource.data.ownerId == ownerId;
       allow delete: if signedIn() && request.auth.uid == ownerId;
 
-      // read and write are split apart here, where they used to be a single
-      // `allow read, write`. The student themselves gets read and nothing
-      // else: their dashboard is view-only, and that has to be enforced here
-      // rather than by hiding buttons, since anyone can call Firestore
-      // directly. Owner and shared co-parents keep full read/write.
+      // Owner and shared co-parents get full read/write on drive logs.
       match /logs/{logId} {
-        allow read: if signedIn() &&
-          (request.auth.uid == ownerId ||
-           isSharedWithMe(get(/databases/$(database)/documents/users/$(ownerId)/students/$(studentId)).data) ||
-           isStudentSelf(get(/databases/$(database)/documents/users/$(ownerId)/students/$(studentId)).data));
-        allow write: if signedIn() &&
+        allow read, write: if signedIn() &&
           (request.auth.uid == ownerId ||
            isSharedWithMe(get(/databases/$(database)/documents/users/$(ownerId)/students/$(studentId)).data));
       }
@@ -194,23 +162,6 @@ service cloud.firestore {
     // the helper.
     match /{path=**}/students/{studentId} {
       allow read: if signedIn() && myEmail() in resource.data.sharedWithEmails;
-    }
-
-    // Second collection-group rule, for the student finding their own
-    // dashboard. Kept as its own match block rather than OR'd into the one
-    // above: each collection-group query has to be statically matched to a
-    // rule, and the two queries filter on different fields
-    // (array-contains sharedWithEmails vs. == studentLoginEmail). Firestore
-    // ORs allows across match statements, so both queries resolve while
-    // neither grants more than its own filter.
-    //
-    // Needs a single-field index on students.studentLoginEmail with
-    // collection-group scope — collection-group queries are not covered by
-    // the automatic single-field indexes.
-    match /{path=**}/students/{studentId} {
-      allow read: if signedIn() &&
-        resource.data.studentLoginEmail == myEmail() &&
-        request.auth.token.email_verified == true;
     }
 
     // ---------------------------------------------------------------------

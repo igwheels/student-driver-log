@@ -58,12 +58,9 @@ export default function Login() {
       const { user } = await signInWithEmailAndPassword(auth, trimmedEmail, password);
       // Sign-up sends a verification link and signs the new account out, but
       // nothing used to stop them simply signing in again unverified — which
-      // made the whole verification step decorative. It matters now: a
-      // student's read access is granted purely from an address an owner
-      // typed in, so controlling that inbox is the only thing separating the
-      // real student from anyone who guessed it. Firestore enforces this too
-      // (email_verified in isStudentSelf); this branch is so they get the
-      // "check your email" screen instead of an empty dashboard.
+      // made the whole verification step decorative. This branch sends them
+      // to the "check your email" screen instead, so a typo'd or unowned
+      // address can't be used to spin up a working account.
       if (!user.emailVerified) {
         await signOut(auth);
         setPendingVerificationEmail(trimmedEmail);
