@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { STATE_REQUIREMENTS, STATE_LIST } from '../data/stateRequirements';
 import { hasStateForm, stateFormLabel } from '../utils/stateFormFill';
+import { getWeeklyEmailOptOut, setWeeklyEmailOptOut } from '../utils/emailPreferences';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -25,6 +26,34 @@ export default function ManageStudents() {
     getTotals,
   } = useApp();
   const ownedStudents = students.filter((s) => isOwner(s.id));
+
+  // Weekly-email opt-in per student, keyed by studentId — the preference
+  // document lives on the student's own email address (see
+  // src/utils/emailPreferences.js), same mechanism as the Account page's
+  // "Send me weekly progress emails" checkbox, just toggled here on the
+  // student's behalf since they can no longer sign in themselves. No
+  // document for an address means subscribed, so each entry defaults to
+  // true until its actual preference loads.
+  const [weeklyEmailOptIns, setWeeklyEmailOptIns] = useState({});
+  useEffect(() => {
+    ownedStudents.forEach((s) => {
+      if (!s.email) return;
+      getWeeklyEmailOptOut(s.email).then((optedOut) =>
+        setWeeklyEmailOptIns((prev) => ({ ...prev, [s.id]: !optedOut }))
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students]);
+
+  const handleWeeklyEmailToggle = async (student, checked) => {
+    setWeeklyEmailOptIns((prev) => ({ ...prev, [student.id]: checked }));
+    try {
+      await setWeeklyEmailOptOut(student.email, !checked);
+    } catch (e) {
+      console.error('Failed to update email preference:', e);
+      setWeeklyEmailOptIns((prev) => ({ ...prev, [student.id]: !checked }));
+    }
+  };
 
   // The badge itself is the control: it already shows the state, so changing
   // it needs no separate field or section. Choosing from the list opens a
@@ -289,6 +318,21 @@ export default function ManageStudents() {
                 </div>
               )}
             </div>
+
+            {s.email && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={weeklyEmailOptIns[s.id] ?? true}
+                    onChange={(e) => handleWeeklyEmailToggle(s, e.target.checked)}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>
+                    Send {s.firstName} weekly progress emails
+                  </span>
+                </label>
+              </div>
+            )}
 
             <button
               className="btn"
