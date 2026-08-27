@@ -14,6 +14,16 @@
     <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
     <title>Student Driver Log</title>
     <link rel="icon" type="image/png" href="/logo.png" />
+    <!--
+      iOS Safari's "Add to Home Screen" doesn't read the web app manifest's
+      icons at all — it needs this explicit link, and the two
+      apple-mobile-web-app tags below, or the installed icon falls back to a
+      screenshot of the page and it launches inside Safari's chrome instead
+      of standalone.
+    -->
+    <link rel="apple-touch-icon" href="/pwa-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

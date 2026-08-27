@@ -1,3 +1,12 @@
+import { getSharePlatform } from './device';
+
+/** True when the device offers a native share sheet, false everywhere else
+ * (desktop browsers, some Android WebViews) — that's when explicit
+ * email/SMS/social links stand in for it. */
+export function hasNativeShare() {
+  return typeof navigator !== 'undefined' && !!navigator.share;
+}
+
 // Shared "share this" action used by both the topbar ShareButton and any
 // other share-style buttons (e.g. "Brag on your student"). Uses the native
 // share sheet when available, falling back to copying the link with an
@@ -6,7 +15,7 @@ export async function shareContent({ title, text, url }, { onCopied } = {}) {
   const shareUrl = url || window.location.href;
   const shareData = { title: title || document.title, text, url: shareUrl };
 
-  if (navigator.share) {
+  if (hasNativeShare()) {
     try {
       await navigator.share(shareData);
     } catch (err) {
@@ -23,4 +32,26 @@ export async function shareContent({ title, text, url }, { onCopied } = {}) {
   } catch (err) {
     console.error('Copy to clipboard failed:', err);
   }
+}
+
+// Explicit per-channel links for wherever there's no native share sheet to
+// fall back on (see hasNativeShare above) — email, SMS, and WhatsApp compose
+// screens pre-filled with the same title/text/url a native share would carry.
+//
+// The sms: URI has no agreed syntax across platforms once there's no phone
+// number to address it to: iOS Safari only accepts "sms:&body=", while
+// Android wants "sms:?body=" — getSharePlatform() picks the right one rather
+// than guessing a single form that half of users would silently drop the
+// pre-filled text on.
+export function buildShareLinks({ title, text, url }) {
+  const shareUrl = url || (typeof window !== 'undefined' ? window.location.href : '');
+  const subject = title || (typeof document !== 'undefined' ? document.title : '');
+  const body = [text, shareUrl].filter(Boolean).join('\n\n');
+  const smsSeparator = getSharePlatform() === 'ios' ? '&' : '?';
+
+  return {
+    email: `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+    sms: `sms:${smsSeparator}body=${encodeURIComponent(body)}`,
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(body)}`,
+  };
 }
