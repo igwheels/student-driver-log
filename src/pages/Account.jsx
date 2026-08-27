@@ -67,7 +67,7 @@ const LOCATION_PROBE_INFO = {
 };
 
 export default function Account() {
-  const { user, students, deleteStudent, logout, isStudentOnlyAccount } = useApp();
+  const { user, students, deleteStudent, logout } = useApp();
   const navigate = useNavigate();
 
   const [resetStatus, setResetStatus] = useState('');
@@ -230,10 +230,6 @@ export default function Account() {
         {resetStatus && <p style={{ fontSize: 13, marginTop: 10, color: 'var(--muted)' }}>{resetStatus}</p>}
       </section>
 
-      {/* Location powers GPS mileage while timing a drive. A student's view
-          is read-only, so they never log one — the whole section is noise for
-          them. */}
-      {!isStudentOnlyAccount && (
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
         <h3 style={{ fontSize: 16, marginBottom: 10 }}>Location access</h3>
         {!locationStatus && (
@@ -283,7 +279,6 @@ export default function Account() {
           );
         })()}
       </section>
-      )}
 
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
         <h3 style={{ fontSize: 16, marginBottom: 10 }}>Email preferences</h3>
@@ -293,11 +288,6 @@ export default function Account() {
         </label>
       </section>
 
-      {/* Hidden for a student-only account: they own no dashboards, so this
-          would delete just their own sign-in while the parent's record —
-          the thing they actually care about — stays put. Their parent
-          revokes access from Manage students instead. */}
-      {!isStudentOnlyAccount && (
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
         <h3 style={{ fontSize: 16, marginBottom: 10, color: 'var(--danger)' }}>Delete account</h3>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
@@ -349,7 +339,6 @@ export default function Account() {
         )}
         {deleteError && <p style={{ fontSize: 13, marginTop: 10, color: 'var(--danger)' }}>{deleteError}</p>}
       </section>
-      )}
 
       {/* Which build this device is actually running. Phones cache the app
           shell aggressively, and without this the only way to tell a stale

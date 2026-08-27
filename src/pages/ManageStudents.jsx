@@ -21,7 +21,6 @@ export default function ManageStudents() {
     isOwner,
     updateStudentEmail,
     updateStudentState,
-    setStudentLoginAccess,
     deleteStudent,
     getTotals,
   } = useApp();
@@ -115,24 +114,6 @@ export default function ManageStudents() {
   const [emailInput, setEmailInput] = useState('');
   const [emailError, setEmailError] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const [accessBusyId, setAccessBusyId] = useState(null);
-  const [accessError, setAccessError] = useState('');
-  const [accessErrorId, setAccessErrorId] = useState(null);
-
-  const handleAccessToggle = async (student, enabled) => {
-    setAccessError('');
-    setAccessErrorId(null);
-    setAccessBusyId(student.id);
-    try {
-      await setStudentLoginAccess(student.id, enabled);
-    } catch (e) {
-      setAccessError(e.message || 'Could not change sign-in access.');
-      setAccessErrorId(student.id);
-    } finally {
-      setAccessBusyId(null);
-    }
-  };
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteInput, setDeleteInput] = useState('');
@@ -306,31 +287,6 @@ export default function ManageStudents() {
                     Edit
                   </button>
                 </div>
-              )}
-            </div>
-
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: s.email ? 'pointer' : 'not-allowed' }}>
-                <input
-                  type="checkbox"
-                  checked={typeof s.studentLoginEmail === 'string'}
-                  disabled={!s.email || accessBusyId === s.id}
-                  onChange={(e) => handleAccessToggle(s, e.target.checked)}
-                  style={{ marginTop: 2 }}
-                />
-                <span>
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>
-                    Let this student sign in
-                  </span>
-                  <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                    {s.email
-                      ? `${s.email} can sign in and view this dashboard, but not change anything.`
-                      : 'Add an email address above first.'}
-                  </span>
-                </span>
-              </label>
-              {accessError && accessErrorId === s.id && (
-                <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{accessError}</p>
               )}
             </div>
 

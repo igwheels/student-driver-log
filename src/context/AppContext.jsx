@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
-  addDoc, collection, collectionGroup, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
+  addDoc, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { emailDocId } from '../utils/emailHash';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
@@ -123,32 +123,7 @@ export function AppProvider({ children }) {
           console.error('Failed to load shared students (likely a Firestore rules issue):', e);
         }
 
-        // The signed-in user's own dashboard, if an owner has turned student
-        // access on for them. Separate query from the shared one above
-        // because it filters a different field — see the two collection-group
-        // rules in firestore.rules.
-        let selfStudents = [];
-        try {
-          const selfQuery = query(
-            collectionGroup(db, 'students'),
-            where('studentLoginEmail', '==', userEmail)
-          );
-          const selfSnap = await getDocs(selfQuery);
-          selfStudents = selfSnap.docs
-            .filter((d) => d.data().ownerId !== user.id)
-            .map((d) => ({ ...d.data(), id: d.id, isOwner: false, isStudentSelf: true }));
-        } catch (e) {
-          console.error('Failed to load your own dashboard (likely a Firestore rules or index issue):', e);
-        }
-
-        // A student who is also listed as a shared viewer would otherwise
-        // appear twice. Owner > shared > student-self, most access wins.
-        const seen = new Set([...ownedStudents, ...sharedStudents].map((s) => s.id));
-        const allStudents = [
-          ...ownedStudents,
-          ...sharedStudents,
-          ...selfStudents.filter((s) => !seen.has(s.id)),
-        ];
+        const allStudents = [...ownedStudents, ...sharedStudents];
         setStudents(allStudents);
 
         const logsData = {};
@@ -376,26 +351,9 @@ export function AppProvider({ children }) {
     const email = newEmail.trim();
     const previousEmail = student.email || '';
 
-    // If this student can sign in, their access is pinned to the address it
-    // was granted to — move it with the change. Without this, editing the
-    // email would leave sign-in access sitting on the OLD address: the
-    // previous address would keep reading the dashboard and the new one
-    // wouldn't be able to.
-    const accessEnabled = typeof student.studentLoginEmail === 'string';
-    const nextLoginEmail = accessEnabled ? normalizeEmail(email) : null;
+    setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, email } : s)));
 
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === studentId
-          ? { ...s, email, ...(accessEnabled ? { studentLoginEmail: nextLoginEmail } : {}) }
-          : s
-      )
-    );
-
-    await updateDoc(doc(db, 'users', user.id, 'students', studentId), {
-      email,
-      ...(accessEnabled ? { studentLoginEmail: nextLoginEmail } : {}),
-    });
+    await updateDoc(doc(db, 'users', user.id, 'students', studentId), { email });
 
     // The directory is keyed by the email, so changing it moves the entry to a
     // new document rather than editing one in place: write the new key first,
@@ -540,42 +498,6 @@ export function AppProvider({ children }) {
     return student?.ownerId === user?.id;
   };
 
-  // This student's dashboard belongs to the signed-in user themselves, and is
-  // read-only. The real enforcement is in firestore.rules; this drives the UI.
-  const isStudentSelf = (studentId) => {
-    const student = students.find((s) => s.id === studentId);
-    return student?.isStudentSelf === true;
-  };
-
-  // True when the only thing this account can see is their own dashboard —
-  // no students owned, none shared with them as a co-parent. Used to pare the
-  // Account page back to what a student needs.
-  const isStudentOnlyAccount =
-    students.length > 0 && students.every((s) => s.isStudentSelf === true);
-
-  // Turn a student's read-only sign-in access on or off. Writing the address
-  // into studentLoginEmail (rather than a boolean beside `email`) is what
-  // lets the rules check one field and the discovery query use a single-field
-  // index — see firestore.rules.
-  const setStudentLoginAccess = async (studentId, enabled) => {
-    const student = students.find((s) => s.id === studentId);
-    if (!student || student.ownerId !== user?.id) {
-      throw new Error('Only the owner can change student sign-in access');
-    }
-    const email = normalizeEmail(student.email || '');
-    if (enabled && !email) {
-      throw new Error('Add an email address for this student first');
-    }
-
-    const value = enabled ? email : null;
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, studentLoginEmail: value } : s))
-    );
-    await updateDoc(doc(db, 'users', user.id, 'students', studentId), {
-      studentLoginEmail: enabled ? email : deleteField(),
-    });
-  };
-
   // Share a student by email. Access takes effect immediately once the recipient is
   // signed in with that email (Firestore rules check sharedWithEmails directly) —
   // whether they already have an account or create one later. An invitation record
@@ -674,9 +596,6 @@ export function AppProvider({ children }) {
         authChecked,
         syncing,
         isOwner,
-        isStudentSelf,
-        isStudentOnlyAccount,
-        setStudentLoginAccess,
         shareStudent,
         unshareStudent,
       }}
