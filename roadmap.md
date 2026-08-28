@@ -159,21 +159,26 @@ directly on Apple's and Google's sites, not an implementation task.
    - Apple verifies the enrollment by phone — watch for a call and be
      ready to confirm company details.
 
-7. **Google Play Console enrollment** — start in parallel with Apple, cheap
-   and fast, removes a dependency early.
-   - Enroll at https://play.google.com/console/signup as an
+7. **Google Play Console enrollment** — **also gated on the same D-U-N-S
+   number as Apple**, confirmed directly on Google's current signup page
+   (https://play.google.com/console/signup): Play Console's Organization
+   account type requires a D-U-N-S number too, the same one requested for
+   Apple in step 6 above. This corrects the roadmap's earlier assumption
+   that Google didn't need one — there is now only **one** shared
+   external dependency blocking both enrollments, not two independent ones.
+   - Once the D-U-N-S number DevWorks LLC applied for (step 6) resolves,
+     enroll at https://play.google.com/console/signup as an
      **Organization** account (not individual), using DevWorks LLC as the
      developer entity — this determines what shows as the publisher on the
      Play Store listing, so get this right at signup rather than changing
      it later.
    - $25 one-time registration fee.
-   - Identity verification (D-U-N-S is NOT required for Google — Google
-     verifies organizations through its own process, typically a
-     combination of business documents and/or a verification call)
-     typically completes in a few days, occasionally up to ~2 weeks.
-   - Have ready: DevWorks LLC's legal name and business address, a
-     government-issued ID for the account owner, and a payment method for
-     the $25 fee.
+   - Have ready: the D-U-N-S number, DevWorks LLC's legal name and business
+     address, a government-issued ID for the account owner, and a payment
+     method for the $25 fee.
+   - Since this no longer has an independent lead time, there's nothing to
+     start in parallel right now beyond what step 6 already kicked off —
+     revisit this once the D-U-N-S number comes back.
 
 **When both are approved:** Phase 3 (Capacitor wrapper) doesn't block on
 this, but Phase 5 (store submission) can't start until both accounts are
@@ -270,10 +275,10 @@ privacy labels all exist.
 
 - **Done:** Phase 1 in full — Resend email switch, share fallback links, PWA
   foundation, custom domain, student self-login removal.
-- **Start next for lead time, payoff later:** Apple Developer Program
-  enrollment (6) — begin the same day as any real commitment to the App
-  Store, regardless of code readiness; Play Console enrollment (7) in
-  parallel, cheap and fast.
+- **In progress:** D-U-N-S number applied for (blocks both Apple Developer
+  Program enrollment (6) and Google Play Console enrollment (7) — both
+  require the same D-U-N-S number, so they're no longer independent
+  tracks). Once it resolves, enroll in both.
 - **Middle, blocking:** Capacitor wrapper, native-auth verification
   (including Sign in with Apple), review-risk mitigation, privacy labels
   (Phase 3).
