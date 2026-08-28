@@ -191,7 +191,12 @@ actionable *code* work is Phase 3.
 
 8. Add `@capacitor/core`, `@capacitor/cli`, `@capacitor/ios`,
    `@capacitor/android` on top of the existing `vite build` output;
-   `capacitor.config.json` points `webDir` at `dist`.
+   `capacitor.config.json` points `webDir` at `dist`. **App ID decided:
+   `com.devworksllc.sdl`** (reverse-domain, matches the `sdl` used in
+   `sdl.devworksllc.com`). **Owner decision:** hold off starting this step
+   until working from a Mac with Xcode, so both iOS and Android platforms
+   can be scaffolded and opened in one pass rather than doing Android now
+   and iOS later.
 9. Verify Firebase Auth — especially Google Sign-In — and Firestore work
    inside the Capacitor WebView. Google Sign-In's web popup/redirect flow
    often needs `@capacitor-firebase/authentication` or a custom URL scheme
