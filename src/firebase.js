@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -13,5 +13,14 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// getAuth()'s default persistence auto-detection probes IndexedDB first,
+// which hangs indefinitely inside a Capacitor WKWebView (loaded from the
+// non-standard capacitor://localhost origin) — the sign-in call itself
+// succeeds, but onAuthStateChanged then never fires, so AppContext's
+// authChecked flag never flips true and every RequireAuth-gated route stays
+// blank forever. Forcing browserLocalPersistence (localStorage) skips that
+// IndexedDB probe entirely; it's supported everywhere this app runs (web and
+// both native WebViews) and this app's storage needs don't benefit from
+// IndexedDB's extra capacity.
+export const auth = initializeAuth(app, { persistence: browserLocalPersistence });
 export const db = getFirestore(app);
