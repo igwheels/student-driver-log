@@ -3,3 +3,8 @@ dist
 .env
 .env.local
 .DS_Store
+
+# Planning notes live in the private igwheels/student-driver-log-notes repo
+# instead — this repo is public (GitHub Free doesn't support Pages on a
+# private repo), so this guards against ever re-adding it here.
+roadmap.md
