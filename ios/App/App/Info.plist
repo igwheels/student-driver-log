@@ -26,6 +26,25 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Student Driver Log uses your location to record mileage and route on logged practice drives, and to compare your speed against the posted limit.</string>
+	<!--
+	  Google Sign-In (via @capacitor-firebase/authentication) redirects back
+	  into the app through this custom URL scheme once the user picks an
+	  account — this is the REVERSED_CLIENT_ID from GoogleService-Info.plist
+	  (that file itself lives only on each developer's machine, not in this
+	  repo, so this value has to be hardcoded here instead of read from it).
+	  Without it, Firebase's iOS SDK crashes at launch with
+	  NSInvalidArgumentException: "Your app is missing support for the
+	  following URL schemes: ...".
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.829898988631-11b1f4r6p7q73op0r6059n52nhmts9d7</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
