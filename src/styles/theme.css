@@ -549,7 +549,11 @@ a { color: inherit; }
   background: rgba(20,28,46,0.65);
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
-  z-index: 50;
+  /* Leaflet's internal map panes (used by DriveMap for a drive's route) go
+     up to z-index 700 by default and aren't isolated into their own
+     stacking context, so a low z-index here lets a map rendered behind the
+     modal bleed in front of it. */
+  z-index: 2000;
 }
 .modal-card {
   background: var(--white);
