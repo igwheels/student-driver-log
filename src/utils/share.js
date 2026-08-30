@@ -1,9 +1,17 @@
+import { Capacitor } from '@capacitor/core';
 import { getSharePlatform } from './device';
 
 /** True when the device offers a native share sheet, false everywhere else
  * (desktop browsers, some Android WebViews) — that's when explicit
  * email/SMS/social links stand in for it. */
 export function hasNativeShare() {
+  // WebKit defines navigator.share inside a Capacitor WKWebView, but calling
+  // it there fails silently rather than opening a share sheet (no real
+  // top-level browsing context for the Web Share API to hook into) — so
+  // feature detection alone reports a working share sheet that isn't one.
+  // The mailto/sms/whatsapp link fallback below is what actually works
+  // inside the native shell, so never trust navigator.share there.
+  if (Capacitor.isNativePlatform()) return false;
   return typeof navigator !== 'undefined' && !!navigator.share;
 }
 
