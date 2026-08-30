@@ -554,6 +554,14 @@ a { color: inherit; }
      stacking context, so a low z-index here lets a map rendered behind the
      modal bleed in front of it. */
   z-index: 2000;
+  /* Leaflet's panes are CSS-transformed (translate3d) for hardware
+     acceleration, which promotes them to their own GPU compositing layer.
+     In WKWebView/Safari specifically, a plain (non-composited) element can
+     still paint behind a nearby composited layer despite a much higher
+     z-index — this fix confirmed the bug on Chromium (Android) but not
+     WebKit. Promoting this element to its own layer too keeps it correctly
+     stacked above Leaflet's layers there as well. */
+  transform: translateZ(0);
 }
 .modal-card {
   background: var(--white);
