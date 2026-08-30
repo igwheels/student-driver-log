@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover lets the WKWebView content extend fully under the
+      notch/status bar and home indicator on iOS instead of leaving that
+      area unaccounted for — without it, env(safe-area-inset-*) below has
+      nothing to measure and fixed chrome like .topbar renders flush against
+      the very edge, colliding with the status bar.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#141C2E" />
     <!--
       Vite fingerprints the JS and CSS filenames, so those cache forever
