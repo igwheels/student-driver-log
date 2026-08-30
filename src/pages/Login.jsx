@@ -9,39 +9,12 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithCredential,
   sendPasswordResetEmail,
   sendEmailVerification,
   signOut,
   GoogleAuthProvider,
-  onAuthStateChanged,
 } from 'firebase/auth';
-
-/**
- * @capacitor-firebase/authentication's signInWithGoogle() (with the default
- * skipNativeAuth: false) also signs the Firebase JS SDK in to match — but
- * that sync isn't necessarily done by the time its promise resolves.
- * Confirmed live: auth.currentUser was still empty immediately after
- * signInWithGoogle() returned, and the first Firestore read that followed
- * failed with permission-denied because of it (no ID token attached yet).
- * Waits for the JS SDK to actually report the same signed-in uid before
- * letting the caller proceed.
- */
-function waitForAuthUser(uid, timeoutMs = 8000) {
-  if (auth.currentUser?.uid === uid) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      unsubscribe();
-      reject(new Error('Timed out waiting for sign-in to finish syncing. Please try again.'));
-    }, timeoutMs);
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser?.uid === uid) {
-        clearTimeout(timeout);
-        unsubscribe();
-        resolve();
-      }
-    });
-  });
-}
 
 /**
  * AUTH WIRING NOTES
@@ -54,10 +27,17 @@ function waitForAuthUser(uid, timeoutMs = 8000) {
  *     fundamentally doesn't work inside a Capacitor WKWebView (no real
  *     browser popup to open — fails with auth/cancelled-popup-request).
  *     Natively, @capacitor-firebase/authentication's signInWithGoogle()
- *     drives the OS-native Google sign-in flow instead; with the plugin's
- *     default skipNativeAuth: false (see capacitor.config.json), it also
- *     signs the Firebase JS SDK in to match, so `auth`'s onAuthStateChanged
- *     (AppContext.jsx) fires exactly as it does on the web.
+ *     drives the OS-native Google sign-in flow instead and hands back an
+ *     OAuth credential (idToken/accessToken) — it does NOT sign the
+ *     Firebase JS SDK in on its own (skipNativeAuth: true in
+ *     capacitor.config.json makes that explicit: the plugin's native-only
+ *     Firebase Auth sign-in, a *separate* thing from the JS SDK `auth`
+ *     everything else in this app runs on, is skipped entirely). So that
+ *     credential is exchanged with signInWithCredential(auth, ...) here,
+ *     which is what actually signs `auth` in and lets Firestore reads
+ *     succeed. (An earlier attempt assumed the native and JS SDKs synced
+ *     automatically and just waited for onAuthStateChanged — confirmed
+ *     live that it never fires, since no such sync happens by default.)
  *  3. Apple Sign-In: available through Firebase's OAuthProvider('apple.com')
  *     but requires domain verification in your Apple Developer account.
  *
@@ -74,6 +54,7 @@ export default function Login() {
   const [resetStatus, setResetStatus] = useState('');
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [resendStatus, setResendStatus] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const completeLogin = (profile) => {
     setUser(profile);
@@ -142,18 +123,20 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
+    if (googleLoading) return; // guard against a second tap queuing another native flow
     setError('');
+    setGoogleLoading(true);
     try {
       if (Capacitor.isNativePlatform()) {
         // signInWithPopup has no real browser popup to open inside a native
-        // WebView — this drives the OS-native Google sign-in UI instead, and
-        // (per capacitor.config.json's default skipNativeAuth: false) also
-        // signs `auth` (the Firebase JS SDK) in to match.
-        const { user } = await FirebaseAuthentication.signInWithGoogle();
-        if (!user) throw new Error('Google sign-in did not return a user.');
-        // Wait for that sync to actually land before touching Firestore —
-        // see waitForAuthUser's comment above for why.
-        await waitForAuthUser(user.uid);
+        // WebView — this drives the OS-native Google sign-in UI instead and
+        // hands back an OAuth credential (skipNativeAuth: true in
+        // capacitor.config.json — see the note above handleGoogleLogin's
+        // JSDoc for why). Exchange it with the JS SDK ourselves.
+        const { credential } = await FirebaseAuthentication.signInWithGoogle();
+        if (!credential?.idToken) throw new Error('Google sign-in did not return a credential.');
+        const googleCredential = GoogleAuthProvider.credential(credential.idToken, credential.accessToken);
+        const { user } = await signInWithCredential(auth, googleCredential);
         completeLogin({ id: user.uid, name: user.displayName || 'User', email: user.email });
         return;
       }
@@ -172,6 +155,8 @@ export default function Login() {
       } else {
         setError(err.message || 'Google sign-in failed.');
       }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -251,7 +236,9 @@ export default function Login() {
       <div className="divider" style={{ width: '100%', maxWidth: 340 }}>or</div>
 
       <div style={{ width: '100%', maxWidth: 340 }}>
-        <button className="btn btn-ghost" onClick={handleGoogleLogin}>Continue with Google</button>
+        <button className="btn btn-ghost" onClick={handleGoogleLogin} disabled={googleLoading}>
+          {googleLoading ? 'Signing in…' : 'Continue with Google'}
+        </button>
         {invitedEmail && (
           <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
             Use the Google account for {invitedEmail} to see the shared dashboard.
