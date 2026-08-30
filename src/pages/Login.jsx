@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { useApp } from '../context/AppContext';
 import { auth } from '../firebase';
 import { requestLocationPermission } from '../utils/geo';
@@ -20,7 +22,14 @@ import {
  *  1. Email/password: signInWithEmailAndPassword, falling back to
  *     createUserWithEmailAndPassword the first time (so first-time visitors,
  *     including invited co-parents, get a real Firebase account and uid).
- *  2. Google: signInWithPopup + GoogleAuthProvider.
+ *  2. Google: signInWithPopup + GoogleAuthProvider on the web, but that
+ *     fundamentally doesn't work inside a Capacitor WKWebView (no real
+ *     browser popup to open — fails with auth/cancelled-popup-request).
+ *     Natively, @capacitor-firebase/authentication's signInWithGoogle()
+ *     drives the OS-native Google sign-in flow instead; with the plugin's
+ *     default skipNativeAuth: false (see capacitor.config.json), it also
+ *     signs the Firebase JS SDK in to match, so `auth`'s onAuthStateChanged
+ *     (AppContext.jsx) fires exactly as it does on the web.
  *  3. Apple Sign-In: available through Firebase's OAuthProvider('apple.com')
  *     but requires domain verification in your Apple Developer account.
  *
@@ -107,6 +116,16 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setError('');
     try {
+      if (Capacitor.isNativePlatform()) {
+        // signInWithPopup has no real browser popup to open inside a native
+        // WebView — this drives the OS-native Google sign-in UI instead, and
+        // (per capacitor.config.json's default skipNativeAuth: false) also
+        // signs `auth` (the Firebase JS SDK) in to match.
+        const { user } = await FirebaseAuthentication.signInWithGoogle();
+        if (!user) throw new Error('Google sign-in did not return a user.');
+        completeLogin({ id: user.uid, name: user.displayName || 'User', email: user.email });
+        return;
+      }
       const provider = new GoogleAuthProvider();
       const customParams = { prompt: 'select_account' };
       // Arrived via a share invitation link — suggest that email in Google's
