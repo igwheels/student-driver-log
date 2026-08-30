@@ -201,6 +201,10 @@ a { color: inherit; }
 .app-footer .footer-links button:hover { text-decoration: underline; }
 
 /* ---------- Legal pages (Terms, Privacy) ---------- */
+/* These pages hide the topbar, which is normally the only element carrying
+   safe-area-inset-top padding — without this, the Back button renders under
+   the iOS status bar/notch and isn't tappable. */
+.page.legal-page { padding-top: calc(28px + env(safe-area-inset-top)); }
 .legal-page h2 { font-size: 22px; margin-bottom: 4px; }
 .legal-page .legal-updated {
   color: var(--muted);
