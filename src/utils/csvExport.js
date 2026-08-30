@@ -12,6 +12,7 @@
  */
 import { localOffsetMinutes, toZonedTimeInput } from './driveTime';
 import { downloadFileName } from './fileName';
+import { saveOrShareBlob } from './saveFile';
 import { formatSkills } from '../data/skillCategories';
 
 const DRIVE_TYPE_LABELS = { local: 'Local', rural: 'Rural', highway: 'Highway' };
@@ -69,15 +70,9 @@ export function buildDrivesCsv({ student, logs }) {
   return `﻿${[toRow(header), ...rows].join('\r\n')}\r\n`;
 }
 
-export function exportDrivesCsv({ student, logs }) {
+export async function exportDrivesCsv({ student, logs }) {
   const csv = buildDrivesCsv({ student, logs });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = downloadFileName([student.firstName, student.lastName, 'driving-logs'], 'csv');
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const filename = downloadFileName([student.firstName, student.lastName, 'driving-logs'], 'csv');
+  await saveOrShareBlob(blob, filename);
 }
