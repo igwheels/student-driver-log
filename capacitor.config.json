@@ -1,5 +1,11 @@
 {
   "appId": "com.devworksllc.sdl",
   "appName": "Student Driver Log",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "FirebaseAuthentication": {
+      "providers": ["google.com"],
+      "skipNativeAuth": true
+    }
+  }
 }

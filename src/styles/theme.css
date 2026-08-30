@@ -80,7 +80,10 @@ a { color: inherit; }
 .topbar {
   background: var(--navy);
   color: var(--white);
-  padding: 12px 24px;
+  /* env(safe-area-inset-top) is 0 on the web and only kicks in inside the
+     native iOS shell (see index.html's viewport-fit=cover) — without it,
+     the bar sits flush against the status bar/notch instead of below it. */
+  padding: calc(12px + env(safe-area-inset-top)) 24px 12px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -174,7 +177,8 @@ a { color: inherit; }
   margin-top: auto;
   background: var(--navy);
   color: var(--muted);
-  padding: 16px 24px;
+  /* Same reasoning as .topbar above, for the home indicator at the bottom. */
+  padding: 16px 24px calc(16px + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -197,6 +201,10 @@ a { color: inherit; }
 .app-footer .footer-links button:hover { text-decoration: underline; }
 
 /* ---------- Legal pages (Terms, Privacy) ---------- */
+/* These pages hide the topbar, which is normally the only element carrying
+   safe-area-inset-top padding — without this, the Back button renders under
+   the iOS status bar/notch and isn't tappable. */
+.page.legal-page { padding-top: calc(28px + env(safe-area-inset-top)); }
 .legal-page h2 { font-size: 22px; margin-bottom: 4px; }
 .legal-page .legal-updated {
   color: var(--muted);

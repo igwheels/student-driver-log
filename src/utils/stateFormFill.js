@@ -12,6 +12,7 @@
  */
 import { stateFormTemplateFor } from '../data/stateFormTemplates';
 import { downloadFileName } from './fileName';
+import { saveOrShareBlob } from './saveFile';
 import { localOffsetMinutes, toZonedDateInput } from './driveTime';
 import { formatSkills, skillShortLabel } from '../data/skillCategories';
 
@@ -609,16 +610,10 @@ export async function exportFilledStateForm({
     totals,
   });
   const blob = new Blob([bytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = downloadFileName(
+  const filename = downloadFileName(
     [student.firstName, student.lastName, student.state, 'form'],
     'pdf'
   );
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  await saveOrShareBlob(blob, filename);
   return { template, omittedCount };
 }

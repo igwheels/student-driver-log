@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { useApp } from '../context/AppContext';
 import { auth } from '../firebase';
 import { requestLocationPermission } from '../utils/geo';
@@ -7,6 +9,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithCredential,
   sendPasswordResetEmail,
   sendEmailVerification,
   signOut,
@@ -20,7 +23,21 @@ import {
  *  1. Email/password: signInWithEmailAndPassword, falling back to
  *     createUserWithEmailAndPassword the first time (so first-time visitors,
  *     including invited co-parents, get a real Firebase account and uid).
- *  2. Google: signInWithPopup + GoogleAuthProvider.
+ *  2. Google: signInWithPopup + GoogleAuthProvider on the web, but that
+ *     fundamentally doesn't work inside a Capacitor WKWebView (no real
+ *     browser popup to open — fails with auth/cancelled-popup-request).
+ *     Natively, @capacitor-firebase/authentication's signInWithGoogle()
+ *     drives the OS-native Google sign-in flow instead and hands back an
+ *     OAuth credential (idToken/accessToken) — it does NOT sign the
+ *     Firebase JS SDK in on its own (skipNativeAuth: true in
+ *     capacitor.config.json makes that explicit: the plugin's native-only
+ *     Firebase Auth sign-in, a *separate* thing from the JS SDK `auth`
+ *     everything else in this app runs on, is skipped entirely). So that
+ *     credential is exchanged with signInWithCredential(auth, ...) here,
+ *     which is what actually signs `auth` in and lets Firestore reads
+ *     succeed. (An earlier attempt assumed the native and JS SDKs synced
+ *     automatically and just waited for onAuthStateChanged — confirmed
+ *     live that it never fires, since no such sync happens by default.)
  *  3. Apple Sign-In: available through Firebase's OAuthProvider('apple.com')
  *     but requires domain verification in your Apple Developer account.
  *
@@ -37,6 +54,7 @@ export default function Login() {
   const [resetStatus, setResetStatus] = useState('');
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [resendStatus, setResendStatus] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const completeLogin = (profile) => {
     setUser(profile);
@@ -105,8 +123,23 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
+    if (googleLoading) return; // guard against a second tap queuing another native flow
     setError('');
+    setGoogleLoading(true);
     try {
+      if (Capacitor.isNativePlatform()) {
+        // signInWithPopup has no real browser popup to open inside a native
+        // WebView — this drives the OS-native Google sign-in UI instead and
+        // hands back an OAuth credential (skipNativeAuth: true in
+        // capacitor.config.json — see the note above handleGoogleLogin's
+        // JSDoc for why). Exchange it with the JS SDK ourselves.
+        const { credential } = await FirebaseAuthentication.signInWithGoogle();
+        if (!credential?.idToken) throw new Error('Google sign-in did not return a credential.');
+        const googleCredential = GoogleAuthProvider.credential(credential.idToken, credential.accessToken);
+        const { user } = await signInWithCredential(auth, googleCredential);
+        completeLogin({ id: user.uid, name: user.displayName || 'User', email: user.email });
+        return;
+      }
       const provider = new GoogleAuthProvider();
       const customParams = { prompt: 'select_account' };
       // Arrived via a share invitation link — suggest that email in Google's
@@ -122,6 +155,8 @@ export default function Login() {
       } else {
         setError(err.message || 'Google sign-in failed.');
       }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -201,7 +236,9 @@ export default function Login() {
       <div className="divider" style={{ width: '100%', maxWidth: 340 }}>or</div>
 
       <div style={{ width: '100%', maxWidth: 340 }}>
-        <button className="btn btn-ghost" onClick={handleGoogleLogin}>Continue with Google</button>
+        <button className="btn btn-ghost" onClick={handleGoogleLogin} disabled={googleLoading}>
+          {googleLoading ? 'Signing in…' : 'Continue with Google'}
+        </button>
         {invitedEmail && (
           <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
             Use the Google account for {invitedEmail} to see the shared dashboard.
