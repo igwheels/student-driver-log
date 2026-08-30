@@ -13,7 +13,35 @@ import {
   sendEmailVerification,
   signOut,
   GoogleAuthProvider,
+  onAuthStateChanged,
 } from 'firebase/auth';
+
+/**
+ * @capacitor-firebase/authentication's signInWithGoogle() (with the default
+ * skipNativeAuth: false) also signs the Firebase JS SDK in to match — but
+ * that sync isn't necessarily done by the time its promise resolves.
+ * Confirmed live: auth.currentUser was still empty immediately after
+ * signInWithGoogle() returned, and the first Firestore read that followed
+ * failed with permission-denied because of it (no ID token attached yet).
+ * Waits for the JS SDK to actually report the same signed-in uid before
+ * letting the caller proceed.
+ */
+function waitForAuthUser(uid, timeoutMs = 8000) {
+  if (auth.currentUser?.uid === uid) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      unsubscribe();
+      reject(new Error('Timed out waiting for sign-in to finish syncing. Please try again.'));
+    }, timeoutMs);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser?.uid === uid) {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve();
+      }
+    });
+  });
+}
 
 /**
  * AUTH WIRING NOTES
@@ -123,9 +151,9 @@ export default function Login() {
         // signs `auth` (the Firebase JS SDK) in to match.
         const { user } = await FirebaseAuthentication.signInWithGoogle();
         if (!user) throw new Error('Google sign-in did not return a user.');
-        // TEMP DEBUG — remove once the owned-students-missing bug is diagnosed.
-        console.log('[DEBUG] native signInWithGoogle result:', JSON.stringify({ uid: user.uid, email: user.email }));
-        console.log('[DEBUG] auth.currentUser at this moment:', JSON.stringify({ uid: auth.currentUser?.uid, email: auth.currentUser?.email }));
+        // Wait for that sync to actually land before touching Firestore —
+        // see waitForAuthUser's comment above for why.
+        await waitForAuthUser(user.uid);
         completeLogin({ id: user.uid, name: user.displayName || 'User', email: user.email });
         return;
       }

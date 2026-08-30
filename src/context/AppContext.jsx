@@ -97,12 +97,9 @@ export function AppProvider({ children }) {
       try {
         setSyncing(true);
         const userEmail = normalizeEmail(user.email || '');
-        // TEMP DEBUG — remove once the owned-students-missing bug is diagnosed.
-        console.log('[DEBUG] loadFromFirestore user:', JSON.stringify({ id: user.id, email: user.email, userEmail }));
 
         // Students this user owns
         const ownedSnap = await getDocs(collection(db, 'users', user.id, 'students'));
-        console.log('[DEBUG] ownedSnap doc count:', ownedSnap.docs.length, 'path:', `users/${user.id}/students`);
         const ownedStudents = ownedSnap.docs.map((d) => ({
           ...d.data(),
           id: d.id,
@@ -119,14 +116,11 @@ export function AppProvider({ children }) {
             where('sharedWithEmails', 'array-contains', userEmail)
           );
           const sharedSnap = await getDocs(sharedQuery);
-          console.log('[DEBUG] sharedSnap doc count (pre-filter):', sharedSnap.docs.length,
-            JSON.stringify(sharedSnap.docs.map((d) => ({ id: d.id, ownerId: d.data().ownerId }))));
           sharedStudents = sharedSnap.docs
             .filter((d) => d.data().ownerId !== user.id) // safety: don't double-list own students
             .map((d) => ({ ...d.data(), id: d.id, isOwner: false }));
         } catch (e) {
           console.error('Failed to load shared students (likely a Firestore rules issue):', e);
-          console.log('[DEBUG] shared query error code:', e?.code, 'message:', e?.message);
         }
 
         const allStudents = [...ownedStudents, ...sharedStudents];
@@ -161,7 +155,6 @@ export function AppProvider({ children }) {
         setLogs(logsData);
       } catch (e) {
         console.error('Failed to load from Firestore:', e);
-        console.log('[DEBUG] outer catch error code:', e?.code, 'message:', e?.message);
       } finally {
         setSyncing(false);
       }
