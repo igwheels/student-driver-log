@@ -123,6 +123,9 @@ export default function Login() {
         // signs `auth` (the Firebase JS SDK) in to match.
         const { user } = await FirebaseAuthentication.signInWithGoogle();
         if (!user) throw new Error('Google sign-in did not return a user.');
+        // TEMP DEBUG — remove once the owned-students-missing bug is diagnosed.
+        console.log('[DEBUG] native signInWithGoogle result:', JSON.stringify({ uid: user.uid, email: user.email }));
+        console.log('[DEBUG] auth.currentUser at this moment:', JSON.stringify({ uid: auth.currentUser?.uid, email: auth.currentUser?.email }));
         completeLogin({ id: user.uid, name: user.displayName || 'User', email: user.email });
         return;
       }
