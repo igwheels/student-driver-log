@@ -108,11 +108,15 @@ export function AppProvider({ children }) {
   // sees this same write come back down, the local token already matches —
   // otherwise a device could momentarily see its own claim as a kick.
   const claimSession = async (uid) => {
+    // TEMPORARY diagnostic
+    alert(`claimSession called, uid=${uid}`);
     const token = generateSessionToken();
     try {
       localStorage.setItem(SESSION_TOKEN_KEY, token);
     } catch (e) {
       console.warn('Failed to store session token locally:', e);
+      // TEMPORARY diagnostic
+      alert(`claimSession: localStorage.setItem failed: ${e.message || e}`);
       return;
     }
     try {
