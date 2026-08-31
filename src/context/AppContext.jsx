@@ -108,15 +108,11 @@ export function AppProvider({ children }) {
   // sees this same write come back down, the local token already matches —
   // otherwise a device could momentarily see its own claim as a kick.
   const claimSession = async (uid) => {
-    // TEMPORARY diagnostic
-    alert(`claimSession called, uid=${uid}`);
     const token = generateSessionToken();
     try {
       localStorage.setItem(SESSION_TOKEN_KEY, token);
     } catch (e) {
       console.warn('Failed to store session token locally:', e);
-      // TEMPORARY diagnostic
-      alert(`claimSession: localStorage.setItem failed: ${e.message || e}`);
       return;
     }
     try {
@@ -126,10 +122,6 @@ export function AppProvider({ children }) {
       }, { merge: true });
     } catch (e) {
       console.warn('Failed to claim session:', e);
-      // TEMPORARY diagnostic — claimSession's failures are otherwise silent
-      // on a phone with no attached devtools. Remove once the session-write
-      // issue reported in testing is root-caused.
-      alert(`claimSession failed: ${e.code || ''} ${e.message || e}`);
     }
   };
 
