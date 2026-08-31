@@ -67,10 +67,9 @@ export default function PrivacyPolicy() {
 
       <h3>2. Information collected automatically</h3>
       <p>
-        The Service uses Google Analytics, which collects standard usage information such as pages
-        visited, approximate location derived from IP address, device and browser type, and general
-        usage patterns. This is used to understand how the Service is used. It is not linked to the
-        driving records of any individual student.
+        The Service does not use analytics, advertising, or tracking tools of any kind. We do not
+        collect pages visited, approximate location derived from IP address, device or browser type,
+        or any other automatic usage data.
       </p>
 
       <h3>3. How we use information</h3>
@@ -124,9 +123,6 @@ export default function PrivacyPolicy() {
       <ul>
         <li>
           <strong>Google Firebase</strong> — authentication and database storage
-        </li>
-        <li>
-          <strong>Google Analytics</strong> — usage analytics
         </li>
         <li>
           <strong>Resend</strong> — delivery of weekly progress emails and sharing invitations
