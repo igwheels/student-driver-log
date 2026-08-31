@@ -122,6 +122,10 @@ export function AppProvider({ children }) {
       }, { merge: true });
     } catch (e) {
       console.warn('Failed to claim session:', e);
+      // TEMPORARY diagnostic — claimSession's failures are otherwise silent
+      // on a phone with no attached devtools. Remove once the session-write
+      // issue reported in testing is root-caused.
+      alert(`claimSession failed: ${e.code || ''} ${e.message || e}`);
     }
   };
 
