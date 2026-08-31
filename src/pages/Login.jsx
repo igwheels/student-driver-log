@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { useApp } from '../context/AppContext';
+import { useApp, SESSION_KICK_KEY } from '../context/AppContext';
 import { auth } from '../firebase';
 import { requestLocationPermission } from '../utils/geo';
 import {
@@ -45,7 +45,7 @@ import {
  * the email it was shared with — see src/context/AppContext.jsx.
  */
 export default function Login() {
-  const { setUser } = useApp();
+  const { setUser, claimSession } = useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState(searchParams.get('email') || '');
@@ -55,9 +55,25 @@ export default function Login() {
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [resendStatus, setResendStatus] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [sessionKickedMessage, setSessionKickedMessage] = useState('');
+
+  // If AppContext's session watcher just signed this device out because the
+  // account signed in somewhere else, it leaves this flag behind so the
+  // Login screen can explain why instead of the sign-out looking random.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(SESSION_KICK_KEY)) {
+        setSessionKickedMessage("You've been signed out because this account signed in on another device.");
+        sessionStorage.removeItem(SESSION_KICK_KEY);
+      }
+    } catch (e) {
+      // Not worth failing login over — just skip the explanation.
+    }
+  }, []);
 
   const completeLogin = (profile) => {
     setUser(profile);
+    claimSession(profile.id);
     // Prompt for location access now, so it's already resolved by the time
     // a drive timer needs live GPS to estimate mileage.
     requestLocationPermission();
@@ -215,6 +231,12 @@ export default function Login() {
     <div className="login-screen">
       <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Student Driver Log" className="login-logo" />
       <h1 className="login-title">Student Driver Log</h1>
+
+      {sessionKickedMessage && (
+        <p style={{ color: '#F2A63C', fontSize: 13, textAlign: 'center', maxWidth: 340, marginTop: 4, marginBottom: 12 }}>
+          {sessionKickedMessage}
+        </p>
+      )}
 
       <form className="login-form" onSubmit={handleEmailLogin}>
         <input

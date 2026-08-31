@@ -128,6 +128,28 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // users/{uid}
+    //   -> { activeSessionToken, activeSessionUpdatedAt }
+    //
+    // The account owner's own doc — previously never written directly, only
+    // its students subcollection was. Backs single-active-session
+    // enforcement: signing in claims a fresh token here, and every other
+    // device watching this doc sees its own locally-stored token go stale
+    // and signs itself out (src/context/AppContext.jsx). Fields are pinned
+    // so this can't become a foothold for arbitrary account-doc storage.
+    // ---------------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['activeSessionToken', 'activeSessionUpdatedAt']) &&
+        request.resource.data.activeSessionToken is string &&
+        request.resource.data.activeSessionToken.size() < 100 &&
+        request.resource.data.activeSessionUpdatedAt is string &&
+        request.resource.data.activeSessionUpdatedAt.size() < 40;
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // users/{ownerId}/students/{studentId} and their logs
     //
     // Owner has full control; anyone the student is shared with can read the

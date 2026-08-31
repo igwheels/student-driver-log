@@ -2,13 +2,25 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
-  addDoc, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where,
+  addDoc, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { emailDocId } from '../utils/emailHash';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
 
 const AppContext = createContext(null);
 const STORAGE_KEY = 'sdl_data_v1';
+// Single-active-session enforcement (untiered, applies to every account):
+// signing in claims a fresh token on users/{uid} and remembers it locally;
+// any other device watching that same doc sees its own stored token go
+// stale and signs itself out. SESSION_KICK_KEY survives just long enough
+// for the Login screen's next render to explain why.
+const SESSION_TOKEN_KEY = 'sdl_session_token';
+export const SESSION_KICK_KEY = 'sdl_session_kicked';
+
+const generateSessionToken = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const normalizeEmail = (email) => email.trim().toLowerCase();
 
@@ -52,6 +64,7 @@ export function AppProvider({ children }) {
         setLogs({});
         try {
           localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(SESSION_TOKEN_KEY);
         } catch (e) {
           console.warn('Failed to clear cached data on sign-out', e);
         }
@@ -60,6 +73,57 @@ export function AppProvider({ children }) {
     });
     return unsubscribe;
   }, []);
+
+  // Watches this account's active-session token once signed in. claimSession()
+  // (called from Login.jsx right after a successful sign-in) sets this
+  // device's local token to match the one it just wrote, so its own write
+  // never triggers this — only a *different* device claiming the session
+  // afterward changes the remote token out from under this one.
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsubscribe = onSnapshot(doc(db, 'users', user.id), (snap) => {
+      const remoteToken = snap.data()?.activeSessionToken;
+      let localToken = null;
+      try {
+        localToken = localStorage.getItem(SESSION_TOKEN_KEY);
+      } catch (e) {
+        return; // can't compare without it — don't risk a false-positive kick
+      }
+      if (remoteToken && localToken && remoteToken !== localToken) {
+        try {
+          sessionStorage.setItem(SESSION_KICK_KEY, '1');
+        } catch (e) {
+          // Non-fatal — the sign-out below still happens, just without the
+          // explanatory message on the next Login screen.
+        }
+        signOut(auth);
+      }
+    });
+    return unsubscribe;
+  }, [user?.id]);
+
+  // Called right after a successful sign-in (Login.jsx's completeLogin) to
+  // claim this device as the account's one active session. Writes localStorage
+  // BEFORE the Firestore write resolves, so by the time the watcher above
+  // sees this same write come back down, the local token already matches —
+  // otherwise a device could momentarily see its own claim as a kick.
+  const claimSession = async (uid) => {
+    const token = generateSessionToken();
+    try {
+      localStorage.setItem(SESSION_TOKEN_KEY, token);
+    } catch (e) {
+      console.warn('Failed to store session token locally:', e);
+      return;
+    }
+    try {
+      await setDoc(doc(db, 'users', uid), {
+        activeSessionToken: token,
+        activeSessionUpdatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Failed to claim session:', e);
+    }
+  };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -598,6 +662,7 @@ export function AppProvider({ children }) {
         isOwner,
         shareStudent,
         unshareStudent,
+        claimSession,
       }}
     >
       {children}
