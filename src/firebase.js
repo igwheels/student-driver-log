@@ -1,5 +1,6 @@
+import { Capacitor } from '@capacitor/core';
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence } from 'firebase/auth';
+import { getAuth, initializeAuth, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -18,9 +19,14 @@ const app = initializeApp(firebaseConfig);
 // non-standard capacitor://localhost origin) — the sign-in call itself
 // succeeds, but onAuthStateChanged then never fires, so AppContext's
 // authChecked flag never flips true and every RequireAuth-gated route stays
-// blank forever. Forcing browserLocalPersistence (localStorage) skips that
-// IndexedDB probe entirely; it's supported everywhere this app runs (web and
-// both native WebViews) and this app's storage needs don't benefit from
-// IndexedDB's extra capacity.
-export const auth = initializeAuth(app, { persistence: browserLocalPersistence });
+// blank forever. Forcing a single persistence type (browserLocalPersistence)
+// skips that IndexedDB probe entirely, which is what native needs — but
+// forcing it broke Safari, where initializeAuth() throws auth/argument-error
+// if localStorage is restricted (private browsing, some PWA/ITP storage
+// states), a case getAuth()'s normal fallback chain (IndexedDB → localStorage
+// → sessionStorage → in-memory) handles gracefully. So this only applies to
+// native, where the fallback chain is what hangs in the first place.
+export const auth = Capacitor.isNativePlatform()
+  ? initializeAuth(app, { persistence: browserLocalPersistence })
+  : getAuth(app);
 export const db = getFirestore(app);
