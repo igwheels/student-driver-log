@@ -185,7 +185,10 @@ export default function PrivacyPolicy() {
       <p>
         We retain your information for as long as your account is active. You may delete an
         individual student driver — along with all of that student's recorded drives — from the
-        Manage Students page, or delete your entire account from the Account page. Deletion is
+        Manage Students page, or delete your entire account from the Account page. If you cannot
+        sign in to do this yourself, email us at{' '}
+        <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a> from your account's email
+        address and we will complete the deletion within 30 days and confirm by reply. Deletion is
         permanent and cannot be undone. Some information may persist briefly in routine backups
         before being overwritten.
       </p>
