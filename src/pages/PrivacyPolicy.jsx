@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
       </button>
 
       <h2>Privacy Policy</h2>
-      <p className="legal-updated">Last updated: February 2026</p>
+      <p className="legal-updated">Last updated: September 2026</p>
 
       <p>
         This Privacy Policy explains how DevWorks LLC ("we," "us," or "our") collects, uses, and
@@ -34,8 +34,8 @@ export default function PrivacyPolicy() {
       </p>
       <p>
         <strong>Driving records.</strong> For each drive you log, we collect the date, start and end
-        times, duration, whether it occurred during the day or at night, the type of road, and
-        optionally the distance driven.
+        times, duration, whether it occurred during the day or at night, the type of road,
+        optionally the distance driven, and any skills you tag as practiced.
       </p>
       <p>
         <strong>Location data.</strong> If you use the drive timer and grant location permission,
@@ -55,10 +55,11 @@ export default function PrivacyPolicy() {
       </p>
       <p>
         <strong>Student directory.</strong> To detect when a dashboard already exists for a given
-        student, we store a directory entry keyed by an irreversible hash of the student's email
-        address, containing the student's first name, the dashboard's identifier, and the owner's
-        name. This lets the Service answer "does a dashboard for this address exist?" without making
-        student records searchable or allowing the list of students to be enumerated.
+        student, we store a small directory entry keyed by an irreversible hash of the student's
+        email address. The entry holds the student's first and last name and email address, the
+        dashboard's identifier, and the owner's name and account identifier. Keying it by the hash
+        lets the Service answer "does a dashboard for this address exist?" without making student
+        records searchable or allowing the list of students to be enumerated.
       </p>
       <p>
         <strong>Email preferences.</strong> If you opt out of weekly progress emails, we store that
@@ -85,7 +86,6 @@ export default function PrivacyPolicy() {
         <li>To verify your email address when you create an account</li>
         <li>To calculate drive mileage and draw route maps from location data</li>
         <li>To generate the driving log and affidavit PDF you export</li>
-        <li>To understand overall usage and improve the Service</li>
       </ul>
       <p>
         We do not sell your information. We do not use it for advertising, and we do not share it
@@ -97,7 +97,8 @@ export default function PrivacyPolicy() {
         Student drivers are frequently minors. Accounts may only be created and student drivers may
         only be added by an adult parent, guardian, or authorized supervising driver — students do
         not create their own accounts. We collect only what is needed to produce a supervised driving
-        log: name, an email address for progress updates, state, and drive records.
+        log: name, an email address for progress updates, state, drive records, and — only during a
+        timed drive, and only if location permission is granted — the drive's location and route.
       </p>
       <p>
         The Service is not directed to children under 13 and we do not knowingly permit anyone under
@@ -129,6 +130,13 @@ export default function PrivacyPolicy() {
         </li>
         <li>
           <strong>GitHub Pages</strong> — website hosting
+        </li>
+        <li>
+          <strong>OpenStreetMap Foundation</strong> — map imagery. When a route map is shown for a
+          drive that has recorded GPS coordinates, your browser requests the underlying map tiles
+          from OpenStreetMap's tile servers, which receive your IP address and the map area
+          requested. The drive's coordinates and route are not sent to them, and no tiles are
+          requested for drives without location data or for shared snapshot links.
         </li>
       </ul>
       <p>
@@ -180,6 +188,14 @@ export default function PrivacyPolicy() {
         Manage Students page, or delete your entire account from the Account page. Deletion is
         permanent and cannot be undone. Some information may persist briefly in routine backups
         before being overwritten.
+      </p>
+      <p>
+        A few things outlive your account by design. Drives logged by someone you shared a
+        dashboard with stay on that dashboard, which its own owner controls. If another account
+        has shared a student with your email address, that address remains listed on their
+        dashboard until they remove it. And if you opted out of weekly emails while your address
+        was still a recipient on someone else's dashboard, we keep that opt-out on file so you are
+        not silently resubscribed.
       </p>
 
       <h3>10. Security</h3>

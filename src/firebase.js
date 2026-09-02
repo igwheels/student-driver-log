@@ -10,7 +10,10 @@ const firebaseConfig = {
   storageBucket: 'student-driver-log-b1924.firebasestorage.app',
   messagingSenderId: '829898988631',
   appId: '1:829898988631:web:cca7973251680529eb9712',
-  measurementId: 'G-NYHC3QJ5CN',
+  // No measurementId on purpose: the app does not load firebase/analytics or
+  // call getAnalytics(), so Google Analytics for Firebase never initializes.
+  // Keeping the ID out of the config removes any chance of it being switched
+  // on by accident and keeps the "no analytics" privacy claim unambiguous.
 };
 
 const app = initializeApp(firebaseConfig);

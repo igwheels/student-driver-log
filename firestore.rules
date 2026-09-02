@@ -137,6 +137,14 @@ service cloud.firestore {
     // device watching this doc sees its own locally-stored token go stale
     // and signs itself out (src/context/AppContext.jsx). Fields are pinned
     // so this can't become a foothold for arbitrary account-doc storage.
+    //
+    // delete is scoped to the account owner so that deleting an account
+    // (src/pages/Account.jsx -> performDeletion) can take this record with
+    // it, instead of leaving the last session token orphaned once the auth
+    // user is gone. The doc holds nothing but that token and a timestamp, so
+    // an owner deleting their own is harmless: other live sessions read a
+    // missing token as "no active claim" (no spurious sign-out) until the
+    // next sign-in re-claims.
     // ---------------------------------------------------------------------
     match /users/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
@@ -146,7 +154,7 @@ service cloud.firestore {
         request.resource.data.activeSessionToken.size() < 100 &&
         request.resource.data.activeSessionUpdatedAt is string &&
         request.resource.data.activeSessionUpdatedAt.size() < 40;
-      allow delete: if false;
+      allow delete: if signedIn() && request.auth.uid == uid;
     }
 
     // ---------------------------------------------------------------------

@@ -67,7 +67,7 @@ const LOCATION_PROBE_INFO = {
 };
 
 export default function Account() {
-  const { user, students, deleteStudent, logout } = useApp();
+  const { user, students, deleteStudent, deleteSessionClaim, logout } = useApp();
   const navigate = useNavigate();
 
   const [resetStatus, setResetStatus] = useState('');
@@ -168,6 +168,11 @@ export default function Account() {
         console.warn('Failed to remove email preference:', e);
       }
     }
+
+    // Take the single-active-session record with the account, while still
+    // authenticated — the rules can't authorize this once the auth user is
+    // gone. Non-fatal (see deleteSessionClaim in AppContext.jsx).
+    await deleteSessionClaim(user.id);
 
     await deleteUser(auth.currentUser);
     logout();

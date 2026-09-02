@@ -125,6 +125,21 @@ export function AppProvider({ children }) {
     }
   };
 
+  // Removes the users/{uid} doc (which only ever holds the active-session
+  // token). Called by Account.jsx's account-deletion flow while the user is
+  // still signed in — after Firebase deletes the auth user, the rules would
+  // reject this write. Non-fatal: if the matching firestore.rules change
+  // ('allow delete' scoped to the owner) hasn't been published yet, this
+  // throws permission-denied and the rest of account deletion still runs,
+  // leaving the doc orphaned exactly as before.
+  const deleteSessionClaim = async (uid) => {
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+    } catch (e) {
+      console.warn('Failed to delete session claim doc:', e);
+    }
+  };
+
   // Load from localStorage on mount
   useEffect(() => {
     try {
@@ -663,6 +678,7 @@ export function AppProvider({ children }) {
         shareStudent,
         unshareStudent,
         claimSession,
+        deleteSessionClaim,
       }}
     >
       {children}

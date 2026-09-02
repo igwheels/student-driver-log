@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#141C2E" />
+    <title>Delete your data — Student Driver Log</title>
+    <!--
+      Standalone static page, intentionally not part of the React app:
+      it is the account-deletion URL referenced from the Google Play Data
+      Safety form and the App Store listing, so it must load with no
+      JavaScript and no sign-in. Served at
+      https://sdl.devworksllc.com/data-deletion.html (files in public/ are
+      copied to the site root by Vite).
+
+      Keep this in sync with src/pages/PrivacyPolicy.jsx (§9 Data retention
+      and deletion) and docs/privacy-labels.md.
+    -->
+    <style>
+      :root {
+        --bg: #141c2e;
+        --panel: #1c2740;
+        --text: #e7ecf5;
+        --muted: #9fb0cc;
+        --line: #2c3a58;
+        --accent: #7fa8f0;
+        --danger: #e0736a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 40px 22px 72px;
+      }
+      h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 8px; }
+      h2 { font-size: 1.15rem; margin: 36px 0 10px; }
+      p, li { color: var(--text); }
+      .updated { color: var(--muted); font-size: 0.9rem; margin: 0 0 28px; }
+      a { color: var(--accent); }
+      ol.methods { padding-left: 0; list-style: none; counter-reset: m; }
+      ol.methods > li {
+        counter-increment: m;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 18px 20px;
+        margin: 14px 0;
+      }
+      ol.methods > li::before {
+        content: counter(m);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px; height: 26px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--bg);
+        font-weight: 700;
+        font-size: 0.9rem;
+        margin-right: 10px;
+        vertical-align: middle;
+      }
+      ol.methods h2 { display: inline; font-size: 1.05rem; margin: 0; }
+      code {
+        background: #0f1626;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1px 6px;
+        font-size: 0.92em;
+      }
+      .note {
+        border-left: 3px solid var(--line);
+        padding: 4px 0 4px 16px;
+        color: var(--muted);
+        margin: 18px 0;
+      }
+      footer { margin-top: 48px; color: var(--muted); font-size: 0.88rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Delete your Student Driver Log data</h1>
+      <p class="updated">DevWorks LLC · Student Driver Log</p>
+
+      <p>
+        Student Driver Log stores an account email address, the student-driver
+        records you create (names, state, logged drives, and — only if you use
+        the drive timer and grant permission — the GPS route of a drive), and
+        the email addresses you enter to share a dashboard or send progress
+        emails. You can delete this data at any time in one of the following
+        ways.
+      </p>
+
+      <ol class="methods">
+        <li>
+          <h2>Delete your whole account (in the app)</h2>
+          <p>
+            Open <strong>Account</strong> from the menu, scroll to
+            <strong>Delete account</strong>, type the confirmation phrase, and
+            confirm. This permanently deletes your login, every dashboard you
+            own, and every drive and GPS route logged on those dashboards. It
+            cannot be undone.
+          </p>
+        </li>
+        <li>
+          <h2>Delete a single student driver (in the app)</h2>
+          <p>
+            Open <strong>Manage Students</strong>, choose the student, and
+            select <strong>Delete</strong>. That student and all of their
+            logged drives — including any recorded GPS routes — are removed,
+            along with the directory entry and any pending share invitations
+            that named them. Your account and other students are untouched.
+          </p>
+        </li>
+        <li>
+          <h2>Ask us to delete it for you (by email)</h2>
+          <p>
+            If you can't sign in, email
+            <a href="mailto:ian@devworksllc.com?subject=Data%20deletion%20request">ian@devworksllc.com</a>
+            from the email address on the account and tell us you want your
+            account and all its data deleted. We will verify that the request
+            comes from the account's own address and complete the deletion
+            within <strong>30 days</strong>, then confirm by reply.
+          </p>
+        </li>
+      </ol>
+
+      <h2>What is deleted</h2>
+      <ul>
+        <li>Your account and authentication record</li>
+        <li>Every student driver you own: name, state, and email</li>
+        <li>Every logged drive: date, time, duration, road type, distance, skills</li>
+        <li>GPS start points, end points, and route paths recorded during timed drives</li>
+        <li>The hashed student-directory entry and any queued share invitations</li>
+        <li>The local copy held in your device's browser storage (also cleared whenever you sign out)</li>
+      </ul>
+
+      <h2>What may remain, and why</h2>
+      <ul>
+        <li>
+          <strong>Drives logged by someone you shared a dashboard with</strong>
+          stay on that dashboard if its owner is a different account. Deleting
+          your account does not remove another person's dashboard.
+        </li>
+        <li>
+          <strong>Your email address on a dashboard someone else owns.</strong>
+          If another account shared a student with your address, that address
+          stays listed until that owner removes it.
+        </li>
+        <li>
+          <strong>A weekly-email opt-out record</strong> keyed to your email
+          address is kept if your address still receives progress emails for a
+          dashboard owned by someone else — so an opt-out you set is not lost.
+        </li>
+        <li>
+          <strong>A non-identifying session record</strong> (a random token and
+          a timestamp, with no name, email, or driving data) used to enforce
+          one active login at a time may persist after account deletion.
+        </li>
+        <li>
+          <strong>Routine backups</strong> may retain data briefly before they
+          are overwritten on their normal cycle.
+        </li>
+      </ul>
+
+      <div class="note">
+        Snapshot links you have already shared (a read-only view of a
+        student's progress or a single drive) encode their data in the link
+        itself and are not stored on our servers, so they cannot be recalled.
+        They never contain location data.
+      </div>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about deletion or anything else in our
+        <a href="/#/privacy">Privacy Policy</a> can go to DevWorks LLC at
+        <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a>.
+      </p>
+
+      <footer>
+        Student Driver Log is operated by DevWorks LLC. Data is stored with
+        Google Firebase in the United States.
+      </footer>
+    </main>
+  </body>
+</html>
