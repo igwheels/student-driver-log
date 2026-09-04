@@ -52,7 +52,15 @@ The email includes the drives logged since the previous email (with route maps) 
 
 ## Firestore security rules
 
-[`firestore.rules`](firestore.rules) is the source of truth for the database's access rules, with the reasoning for each block in comments. It is **not** deployed by any workflow — publish changes by pasting the file into the Firebase console (Firestore → Rules), which validates the syntax before you commit it. Edit the file and publish together so the two don't drift.
+[`firestore.rules`](firestore.rules) is the source of truth for the database's access rules, with the reasoning for each block in comments. It is **not** deployed by any automated workflow — deploy changes yourself with the Firebase CLI:
+
+```bash
+npx firebase-tools deploy --only firestore:rules --project student-driver-log-b1924
+```
+
+(Requires `firebase login` once, as whichever Google account has editor access on the project.) That command compiles and publishes in one step, so before running it against production, see what's actually about to change: fetch the currently-published rules (Firebase console's Rules tab, or the Firebase MCP server's `firebase_get_security_rules` tool) and `diff` against the file yourself — deploy has no built-in diff. `--dry-run` is available but only validates syntax and builds; it doesn't show you a delta against what's live. Edit the file and deploy together so the two don't drift.
+
+An earlier version of this doc described publishing by pasting the file into the Firebase console (Firestore → Rules) — that was true before this project had a working, authenticated CLI set up, but it's not a real constraint of Firestore rules; the CLI deploy above validates syntax before publishing, same as the console, and is the current convention. Historical note in case old instructions surface elsewhere: prefer the CLI.
 
 Note that rules cannot inspect a query's filters — they authorize the operation, not the `where` clause. Allowing a collection to be queried therefore allows it to be listed in full. That's why `studentDirectory` is keyed by a hash of the student's email: the duplicate-email check reads one known document rather than querying, so `list` can be denied outright.
 

@@ -27,10 +27,28 @@ Cloud Functions — including simple Firestore triggers, regardless of
 plan. This isn't a scope choice, it's a hard Firebase requirement (Spark
 can't deploy any function at all, since Cloud Functions run on Cloud
 Run/Cloud Functions infra that needs a billing account attached to the
-GCP project). Check Firebase console → Settings → Usage and billing.
-Blaze includes the same free-tier quota Spark has — at this app's volume
-cost should be near zero — but it does require a card on file, so it's a
-real decision, not just a checkbox.
+GCP project). Blaze is confirmed active on `student-driver-log-b1924`
+(billing account `010605-BBEB52-5D3BA5`, linked directly to this
+project) — all three functions are deployed and live. Blaze includes the
+same free-tier quota Spark has, so cost should stay near zero at this
+app's volume; an Artifact Registry cleanup policy (1 day, `us-central1`)
+is also set so old function container images don't quietly accumulate
+into a storage bill.
+
+**A tooling gotcha worth knowing about:** the Firebase MCP server's
+`firebase_get_environment` tool and its `firebase_deploy` tool both
+reported this exact project as *not* on Blaze — "Extensions require the
+Blaze plan" — for three consecutive attempts, even after billing was
+confirmed live in the console (screenshotted, project ID matched
+exactly). The **raw CLI** (`npx firebase-tools deploy ...`), run
+immediately after, sailed straight past that same check with no error at
+all and successfully created a function. Whatever billing signal the MCP
+tools read, it was stale relative to the real, current GCP state that
+the CLI checks fresh on every invocation. **If a deploy through the MCP
+`firebase_deploy` tool fails on a billing/Extensions message, don't
+trust it — retry with the raw CLI before concluding billing is actually
+the problem.** This cost real back-and-forth the first time; it
+shouldn't again.
 
 ## Local development (emulators)
 
@@ -55,20 +73,39 @@ dependencies installed once: `cd functions && npm install`.
 
 ## Deploying
 
-Unlike `firestore.rules` (pasted into the console by convention — see the
-comment at the top of that file), Cloud Functions can't be deployed by
-pasting code into a console text box. Deployment is always through the
-CLI:
+Cloud Functions can't be deployed by pasting code into a console text
+box the way `firestore.rules` historically was — deployment is always
+through the CLI. **Use the raw CLI, not the Firebase MCP `firebase_deploy`
+tool** — see the "tooling gotcha" above; the MCP path returned a stale
+billing verdict that the raw CLI didn't reproduce.
 
 ```
-firebase deploy --only functions
+npx firebase-tools deploy --only functions --project student-driver-log-b1924
 ```
 
-(equivalently `npm run deploy` from inside `functions/`). This requires
-`firebase login` once, the Blaze plan enabled, and `functions/`'s own
-`npm install` run first — the functions codebase has its own
-`package.json`, independent of the web app's.
+(equivalently `npm run deploy` from inside `functions/`, once its own
+`.firebaserc`/project context is set up — the raw invocation above is
+what's actually been used and verified). Requires `firebase login` once
+and `functions/`'s own `npm install` run first — the functions codebase
+has its own `package.json`, independent of the web app's.
 
-Nothing has been deployed as part of this change. Deploying is a
-deliberate follow-up, not something to do implicitly alongside a code
-review.
+One real first-deploy wrinkle to expect: the two Firestore triggers
+(`onEntitlementWritten`, `onStudentCreated`) can fail on their first
+attempt with *"Permission denied while using the Eventarc Service
+Agent"* — that's the Eventarc/Pub/Sub service agent IAM roles still
+propagating after they're first provisioned, not a real problem. Wait a
+couple of minutes and redeploy; `validatePurchase` (a plain callable, no
+Eventarc trigger) deployed clean on the very first attempt and doesn't
+hit this.
+
+**Current status: all three functions are deployed and live** in
+`us-central1` — `validatePurchase` (callable), `onEntitlementWritten` and
+`onStudentCreated` (Firestore triggers). `firestore.rules` is deployed
+too (see the root README's Firestore section). Verified end to end: a
+call to `validatePurchase` with a valid auth token and no real receipt
+returns `functions/unimplemented` from the App Store verification stub,
+and never reaches the Firestore write path — checked by exercising the
+same committed source against the local emulator (a throwaway
+emulator-only Auth user, never touching production Auth or Firestore),
+and separately confirmed the live project's `receipts` collection and
+every `entitlements` subcollection are still empty.
