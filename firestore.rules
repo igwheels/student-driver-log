@@ -1,8 +1,10 @@
 // Firestore security rules for Student Driver Log.
 //
-// These are published manually through the Firebase console (Firestore →
-// Rules); this file is the version-controlled source of truth for what
-// should be there. Keep the two in sync — edit here, then paste.
+// Deployed via the Firebase CLI (`npx firebase-tools deploy --only
+// firestore:rules --project student-driver-log-b1924`; see the root
+// README's Firestore section) — this file is the version-controlled
+// source of truth for what should be live. Keep the two in sync: edit
+// here, diff against what's deployed, then deploy.
 
 rules_version = '2';
 service cloud.firestore {
