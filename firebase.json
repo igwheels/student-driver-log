@@ -1,5 +1,18 @@
 {
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "*.log"]
+    }
+  ],
+  "emulators": {
+    "functions": { "port": 5001 },
+    "firestore": { "port": 8080 },
+    "auth": { "port": 9099 },
+    "ui": { "enabled": true }
   }
 }

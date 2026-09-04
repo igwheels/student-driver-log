@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { emailDocId } from '../utils/emailHash';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
+import { watchOwnFamilyPack, studentHasFamilyPack, restorePurchases as restorePurchasesCall } from '../utils/entitlements';
 
 const AppContext = createContext(null);
 const STORAGE_KEY = 'sdl_data_v1';
@@ -31,6 +32,11 @@ export function AppProvider({ children }) {
   const [hydrated, setHydrated] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  // This account's OWN Family Pack status — for gates on actions the
+  // account owner performs. Not what a shared co-parent should check for
+  // a particular student's premium features; see studentHasFamilyPack
+  // (src/utils/entitlements.js) for that half of the split.
+  const [hasFamilyPack, setHasFamilyPack] = useState(false);
 
   // Keep app-level user state in sync with Firebase's actual auth session,
   // instead of relying solely on the one-time setUser() call at login. Without
@@ -139,6 +145,18 @@ export function AppProvider({ children }) {
       console.warn('Failed to delete session claim doc:', e);
     }
   };
+
+  // Live-subscribes to this account's own Family Pack entitlement doc
+  // (functions/src/validatePurchase.js is the only thing that ever writes
+  // it). Resets to false on sign-out so a previous session's entitlement
+  // never lingers into the next signed-in account on a shared device.
+  useEffect(() => {
+    if (!user?.id) {
+      setHasFamilyPack(false);
+      return;
+    }
+    return watchOwnFamilyPack(user.id, setHasFamilyPack);
+  }, [user?.id]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -679,6 +697,9 @@ export function AppProvider({ children }) {
         unshareStudent,
         claimSession,
         deleteSessionClaim,
+        hasFamilyPack,
+        studentHasFamilyPack,
+        restorePurchases: restorePurchasesCall,
       }}
     >
       {children}

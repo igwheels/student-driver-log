@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { initializeApp } from 'firebase/app';
 import { getAuth, initializeAuth, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCkf0lYqIF-GK3Eg3WT0vyLe_si1VYyM4M',
@@ -33,3 +34,6 @@ export const auth = Capacitor.isNativePlatform()
   ? initializeAuth(app, { persistence: browserLocalPersistence })
   : getAuth(app);
 export const db = getFirestore(app);
+// Default region (us-central1) matches functions/src/*.js's explicit
+// `region: 'us-central1'` — no need to pass a region here too.
+export const functions = getFunctions(app);
