@@ -1,6 +1,12 @@
 # Background Drive Tracking — Spec
 
-**Linear:** none yet (see [§11](#11-open-questions)) · **Date:** 2026-09-07 · **Status:** spec, not started
+**Linear:** DEV-71 (standalone) · **Date:** 2026-09-07 · **Status:** spec approved, not started
+
+> **Decisions (2026-09-07):** (1) minimal-permission path — iOS "When In Use" + Location
+> background mode, no "Always"; Android foreground service started from the Start Drive
+> tap, no `ACCESS_BACKGROUND_LOCATION`. (2) `@capacitor-community/background-geolocation`
+> (free). (3) Build the process-kill recovery flow ("resume / save partial / discard").
+> (4) Tracked as a standalone issue, not under DEV-70.
 
 ## 1. The ask
 
@@ -142,16 +148,18 @@ logged drive.
    returns to the timer.
 5. Battery drain over ~45 min.
 
-## 11. Open questions
+## 11. Decisions
 
-1. **Permission scope:** confirm the minimal path (iOS "When In Use" + background
-   mode; Android FGS-from-tap, no `ACCESS_BACKGROUND_LOCATION`). Escalate to "Always"
-   / background-location only if testing shows drives still drop.
-2. **Plugin:** confirm `@capacitor-community/background-geolocation` (free) over the
-   paid transistorsoft plugin.
-3. **Process-kill UX:** silent checkpoint + "resume / save / discard" prompt on next
-   launch — or accept best-effort and skip the recovery flow for v1?
-4. **Linear:** file this as a sub-issue of DEV-70, or its own issue?
+All four resolved 2026-09-07 (see the note at the top):
+
+1. **Permission scope:** minimal path. iOS "When In Use" + Location background mode.
+   Android foreground service from the Start Drive tap, no `ACCESS_BACKGROUND_LOCATION`.
+   Escalate only if real-device testing shows drives still drop while backgrounded.
+2. **Plugin:** `@capacitor-community/background-geolocation` (free).
+3. **Process-kill UX:** build the recovery flow — incremental checkpoint, and a
+   "resume / save partial / discard" prompt on the next launch when an active-drive
+   checkpoint is found.
+4. **Linear:** standalone issue **DEV-71**, related to DEV-70 but not a sub-issue.
 
 ## 12. Rough effort
 
