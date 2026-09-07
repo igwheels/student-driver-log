@@ -53,9 +53,9 @@ export default function DriveTimer() {
   const [startOffsetMinutes] = useState(() => localOffsetMinutes());
   const [elapsed, setElapsed] = useState(0);
   const [miles, setMiles] = useState(0);
-  const [gps, setGps] = useState({ status: 'waiting', accuracy: null });
+  const [gps, setGps] = useState({ status: 'waiting', accuracy: null, speedMph: null, maxSpeedMph: null });
   const interval = useRef(null);
-  const trackingRef = useRef({ miles: 0, start: null, end: null, route: [] });
+  const trackingRef = useRef({ miles: 0, start: null, end: null, route: [], maxSpeedMph: null });
   const stopTracking = useRef(null);
   const releaseWakeLock = useRef(null);
 
@@ -66,7 +66,13 @@ export default function DriveTimer() {
     stopTracking.current = startMileageTracking((update) => {
       trackingRef.current = update;
       setMiles(update.miles);
-      setGps({ status: update.status, accuracy: update.accuracy, error: update.error });
+      setGps({
+        status: update.status,
+        accuracy: update.accuracy,
+        speedMph: update.speedMph,
+        maxSpeedMph: update.maxSpeedMph,
+        error: update.error,
+      });
     });
     releaseWakeLock.current = keepScreenAwake();
     return () => {
@@ -84,12 +90,13 @@ export default function DriveTimer() {
     clearInterval(interval.current);
     stopTracking.current?.();
     const endTime = new Date();
-    const { miles: trackedMiles, start, end, route } = trackingRef.current;
+    const { miles: trackedMiles, start, end, route, maxSpeedMph } = trackingRef.current;
     const prefill = {
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       startOffsetMinutes,
       distanceMiles: trackedMiles > 0 ? Number(trackedMiles.toFixed(1)) : null,
+      maxSpeedMph: maxSpeedMph != null ? Math.round(maxSpeedMph) : null,
       startLocation: start,
       endLocation: end,
       route: route && route.length > 1 ? route : null,
@@ -109,6 +116,22 @@ export default function DriveTimer() {
       <div className="timer-hint">
         Started at {startTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
       </div>
+
+      {/* Live speed, for the supervising adult to glance at against the
+          posted signs — the app has no speed-limit data of its own, so the
+          comparison is theirs to make. '--' whenever there's no trustworthy
+          reading (no fix yet, too coarse, or the plausibility gate rejected
+          it) rather than a stale or zero number that looks real. */}
+      <div className="timer-speed">
+        <span className="timer-speed-value mono">
+          {gps.status === 'tracking' && gps.speedMph != null ? Math.round(gps.speedMph) : '––'}
+        </span>
+        <span className="timer-speed-unit">mph</span>
+        <span className="timer-speed-max">
+          {gps.maxSpeedMph != null ? `Top speed this drive: ${Math.round(gps.maxSpeedMph)} mph` : ' '}
+        </span>
+      </div>
+
       {/* Always say something about GPS. A drive that records nothing should
           look wrong while it's happening, not at save time. */}
       {miles > 0 ? (

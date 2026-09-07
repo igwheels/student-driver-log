@@ -310,7 +310,7 @@ export default function Dashboard() {
                 <div className="ledger-row-main">
                   <div>
                     <div className="date">{l.date}</div>
-                    <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}</div>
+                    <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}{l.maxSpeedMph != null ? ` · top ${l.maxSpeedMph} mph` : ''}</div>
                   </div>
                   <div className="duration mono">{fmtDuration(l.durationMinutes)}</div>
                 </div>

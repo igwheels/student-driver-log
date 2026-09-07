@@ -13,6 +13,21 @@ const MAX_JUMP_MILES = 1;
 // mode) reports, which is the case actually worth rejecting.
 const MAX_ACCURACY_METERS = 100;
 
+// coords.speed is metres per second; the rest of the app is US units (miles,
+// mph). Exact by definition: 1 mile = 1609.344 m, 1 h = 3600 s.
+const MPH_PER_MPS = 3600 / 1609.344;
+
+// Above this, a "speed" is a GPS artefact — a bad fix or a cold start — not a
+// car on a road with a learner at the wheel. Drop it rather than flash 140
+// on the timer or bank it as the drive's top speed.
+const IMPLAUSIBLE_SPEED_MPH = 120;
+
+// Reject a speed sample that would need harder acceleration than any street
+// car manages (~0.5 g). One-directional on purpose: real braking can be
+// sharper than this, so a large drop is left alone — only an implausible
+// jump *up* between consecutive fixes is treated as noise.
+const MAX_ACCEL_MPH_PER_S = 12;
+
 // GeolocationPositionError codes, per spec.
 const GEO_PERMISSION_DENIED = 1;
 const GEO_POSITION_UNAVAILABLE = 2;
@@ -29,6 +44,19 @@ export function haversineMiles(lat1, lon1, lat2, lon2) {
     Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return EARTH_RADIUS_MILES * c;
+}
+
+/**
+ * Converts a GPS `coords.speed` value (metres per second) to mph.
+ *
+ * Returns null for the values the Geolocation spec allows in place of a real
+ * reading: null (device can't measure ground speed — common on desktop and
+ * some Android fixes) and, defensively, anything negative or non-finite.
+ * A genuine 0 (stopped, speed known) passes through as 0.
+ */
+export function metersPerSecondToMph(mps) {
+  if (mps == null || !Number.isFinite(mps) || mps < 0) return null;
+  return mps * MPH_PER_MPS;
 }
 
 /**
@@ -122,8 +150,20 @@ export function requestLocationPermission() {
  * plus the full sequence of fixes, via navigator.geolocation.watchPosition.
  *
  * Returns a stop() function. onUpdate({ miles, start, end, route, status,
- * accuracy }) fires immediately and then on every fix or error, where
- * start/end are { lat, lng } and route is the full [{ lat, lng }, ...] path.
+ * accuracy, speedMph, heading, maxSpeedMph }) fires immediately and then on
+ * every fix or error, where start/end are { lat, lng } and route is the full
+ * [{ lat, lng }, ...] path.
+ *
+ * speedMph and heading are the current fix's `coords.speed` (converted to
+ * mph) and `coords.heading` (degrees clockwise from true north), for the
+ * real-time driving-safety layer (the drive-timer speed readout, the
+ * accel-event speed gate). speedMph is passed through a plausibility gate
+ * first (see IMPLAUSIBLE_SPEED_MPH / MAX_ACCEL_MPH_PER_S); maxSpeedMph is the
+ * highest gated reading so far this drive, for recording a drive's top speed.
+ * Any of the three is null when the device doesn't report speed/heading, when
+ * heading is undefined because the vehicle is stationary, or on a fix too
+ * coarse to use — trust them only while status is 'tracking', as with
+ * `accuracy`.
  *
  * status is one of:
  *   'unsupported' — no geolocation API in this browser
@@ -146,6 +186,14 @@ export function startMileageTracking(onUpdate) {
   let watchId = null;
   let status = 'waiting';
   let lastAccuracy = null;
+  let lastSpeedMph = null;
+  let lastHeading = null;
+  let maxSpeedMph = null;
+  // The last speed reading that cleared the plausibility gate, with the time
+  // of its fix — the next reading is checked for impossible acceleration
+  // against it.
+  let lastAcceptedSpeed = null;
+  let lastAcceptedSpeedAt = null;
   // The browser's own account of the last failure, passed through so the UI
   // can show it. Geolocation failures are otherwise indistinguishable from
   // the outside, and guessing at them from behaviour alone has cost time.
@@ -159,6 +207,9 @@ export function startMileageTracking(onUpdate) {
       route: route.slice(),
       status,
       accuracy: lastAccuracy,
+      speedMph: lastSpeedMph,
+      heading: lastHeading,
+      maxSpeedMph,
       error: lastError,
     });
 
@@ -172,7 +223,7 @@ export function startMileageTracking(onUpdate) {
 
   watchId = navigator.geolocation.watchPosition(
     (position) => {
-      const { latitude, longitude, accuracy } = position.coords;
+      const { latitude, longitude, accuracy, speed, heading } = position.coords;
       lastAccuracy = accuracy ?? null;
 
       // A very inaccurate fix can swing distance wildly, so it isn't recorded
@@ -180,11 +231,38 @@ export function startMileageTracking(onUpdate) {
       // is too coarse to log rather than just showing nothing.
       if (accuracy != null && accuracy > MAX_ACCURACY_METERS) {
         status = 'imprecise';
+        // Don't vouch for speed/heading off a fix we're rejecting for distance.
+        lastSpeedMph = null;
+        lastHeading = null;
         report();
         return;
       }
 
       lastError = null; // a usable fix supersedes any earlier failure
+
+      // The spec leaves heading NaN (not just null) when the device is
+      // stationary, so a plain null-check isn't enough.
+      lastHeading = Number.isFinite(heading) && heading >= 0 ? heading : null;
+
+      // Plausibility-gate the speed before showing it or letting it set the
+      // drive's top speed: drop GPS artefacts (IMPLAUSIBLE_SPEED_MPH) and any
+      // reading that implies impossible acceleration since the last trusted
+      // one. A gap of several seconds (backgrounded app) makes the allowed
+      // delta large, which is the honest answer — we can't judge across it.
+      let speedMph = metersPerSecondToMph(speed);
+      if (speedMph != null && speedMph > IMPLAUSIBLE_SPEED_MPH) speedMph = null;
+      if (speedMph != null && lastAcceptedSpeed != null && lastAcceptedSpeedAt != null) {
+        const dtSec = (position.timestamp - lastAcceptedSpeedAt) / 1000;
+        if (dtSec > 0 && speedMph - lastAcceptedSpeed > MAX_ACCEL_MPH_PER_S * dtSec) {
+          speedMph = null;
+        }
+      }
+      lastSpeedMph = speedMph;
+      if (speedMph != null) {
+        lastAcceptedSpeed = speedMph;
+        lastAcceptedSpeedAt = position.timestamp;
+        if (maxSpeedMph == null || speedMph > maxSpeedMph) maxSpeedMph = speedMph;
+      }
 
       if (lastFix) {
         const delta = haversineMiles(lastFix.latitude, lastFix.longitude, latitude, longitude);
