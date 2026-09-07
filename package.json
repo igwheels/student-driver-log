@@ -10,6 +10,7 @@
     "replay-telematics": "node scripts/replay-telematics.mjs"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor-firebase/authentication": "^8.5.1",
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",

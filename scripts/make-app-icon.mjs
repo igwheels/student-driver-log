@@ -95,6 +95,30 @@ writeFileSync('assets/icon-foreground.png', compose(1024, { bg: 'none', markWidt
 // Maskable PWA icon: same art, mark shrunk into the maskable safe zone.
 writeFileSync('public/pwa-maskable-512.png', compose(512, { bg: 'gradient', markWidthFrac: 0.62, keyOut: true }));
 
+// Android status-bar notification icon (the "Recording your drive" foreground
+// service, DEV-71): a flat white silhouette of the mark on transparency —
+// Android tints it. Must be transparent-background or the notification
+// misbehaves (dismissable, taps open Settings).
+{
+  const src = createCanvas(1024, 1024);
+  const sx = src.getContext('2d');
+  sx.drawImage(logo, MARK.sx, MARK.sy, MARK.sw, MARK.sh, 512 - 460, 512 - 460 * (MARK.sh / MARK.sw), 920, 920 * (MARK.sh / MARK.sw));
+  keyOutNavy(sx, 1024);
+  const img = sx.getImageData(0, 0, 1024, 1024);
+  for (let i = 0; i < img.data.length; i += 4) {
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; // force white, keep alpha
+  }
+  sx.putImageData(img, 0, 0);
+  for (const [dir, px] of [['mdpi', 24], ['hdpi', 36], ['xhdpi', 48], ['xxhdpi', 72], ['xxxhdpi', 96]]) {
+    const out = createCanvas(px, px);
+    out.getContext('2d').drawImage(src, 0, 0, px, px);
+    const p = `android/app/src/main/res/drawable-${dir}`;
+    mkdirSync(p, { recursive: true });
+    writeFileSync(`${p}/ic_stat_drive.png`, out.toBuffer('image/png'));
+  }
+  console.log('wrote android/app/src/main/res/drawable-*/ic_stat_drive.png');
+}
+
 console.log('wrote assets/icon.png, assets/icon-foreground.png, assets/icon-background.png');
 console.log('wrote public/pwa-512.png, public/pwa-192.png, public/pwa-maskable-512.png');
 console.log('next: npx @capacitor/assets generate --ios --android');

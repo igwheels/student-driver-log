@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useParams, useNavigate } from 'react-router-dom';
 import { startMileageTracking } from '../utils/geo';
 import { keepScreenAwake } from '../utils/device';
@@ -70,17 +71,22 @@ export default function DriveTimer() {
     interval.current = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
     }, 1000);
-    stopTracking.current = startMileageTracking((update) => {
-      trackingRef.current = update;
-      setMiles(update.miles);
-      setGps({
-        status: update.status,
-        accuracy: update.accuracy,
-        speedMph: update.speedMph,
-        maxSpeedMph: update.maxSpeedMph,
-        error: update.error,
-      });
-    });
+    stopTracking.current = startMileageTracking(
+      (update) => {
+        trackingRef.current = update;
+        setMiles(update.miles);
+        setGps({
+          status: update.status,
+          accuracy: update.accuracy,
+          speedMph: update.speedMph,
+          maxSpeedMph: update.maxSpeedMph,
+          error: update.error,
+        });
+      },
+      // Native: keep recording while the app is backgrounded (DEV-71). No-op
+      // flag on web — falls back to watchPosition.
+      { background: true }
+    );
     if (telematicsEnabled()) {
       stopTelematics.current = startDriveTelematics({
         getSpeedMph: () => trackingRef.current?.speedMph ?? null,
@@ -176,7 +182,9 @@ export default function DriveTimer() {
       <button className="ignition-btn" onClick={endDrive}>End Drive</button>
       <p className="timer-gps-hint">
         {gpsNotice(gps).hint ??
-          'Keep this screen open for accurate GPS mileage — tracking pauses if you switch apps or lock your phone.'}
+          (Capacitor.isNativePlatform()
+            ? 'Mileage and route keep recording if you switch apps. Tracking still stops if you close Student Driver Log.'
+            : 'Keep this screen open for accurate GPS mileage — tracking pauses if you switch apps or lock your phone.')}
       </p>
       {/* The browser's own wording for the failure. Kept small and last: it's
           for working out what actually went wrong, which reasoning from the

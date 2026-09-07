@@ -1,3 +1,11 @@
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+// @capacitor-community/background-geolocation — keeps delivering fixes while
+// the app is backgrounded during a drive (DEV-71). Native only; on web the
+// proxy throws when called, which is why every use is behind
+// Capacitor.isNativePlatform().
+const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
+
 const EARTH_RADIUS_MILES = 3958.8;
 
 // Ignore GPS points that jump further than this in one reading — almost
@@ -147,7 +155,15 @@ export function requestLocationPermission() {
 /**
  * Tracks cumulative miles traveled — as the sum of the distance between each
  * consecutive GPS fix along the way, not a straight line from start to end —
- * plus the full sequence of fixes, via navigator.geolocation.watchPosition.
+ * plus the full sequence of fixes.
+ *
+ * `options.background: true` on a native build routes fixes through
+ * @capacitor-community/background-geolocation, which keeps them coming while
+ * the app is backgrounded (see docs/background-drive-tracking-spec.md);
+ * `options.backgroundTitle` / `.backgroundMessage` set the Android
+ * foreground-service notification text. On web (and native without
+ * `background`) it uses navigator.geolocation.watchPosition, which the OS
+ * suspends when the app leaves the foreground.
  *
  * Returns a stop() function. onUpdate({ miles, start, end, route, status,
  * accuracy, speedMph, heading, maxSpeedMph }) fires immediately and then on
@@ -179,7 +195,7 @@ export function requestLocationPermission() {
  * could run to completion having recorded nothing, and the first sign of it
  * was a saved log with no distance and no map.
  */
-export function startMileageTracking(onUpdate) {
+export function startMileageTracking(onUpdate, options = {}) {
   let totalMiles = 0;
   let lastFix = null;
   const route = [];
@@ -213,6 +229,135 @@ export function startMileageTracking(onUpdate) {
       error: lastError,
     });
 
+  // One fix, from either source, normalized to
+  // { latitude, longitude, accuracy, speed, heading } + a time in ms.
+  const handleFix = ({ latitude, longitude, accuracy, speed, heading }, timeMs) => {
+    lastAccuracy = accuracy ?? null;
+
+    // A very inaccurate fix can swing distance wildly, so it isn't recorded —
+    // but it is reported, so the timer can tell the driver that location is
+    // too coarse to log rather than just showing nothing.
+    if (accuracy != null && accuracy > MAX_ACCURACY_METERS) {
+      status = 'imprecise';
+      // Don't vouch for speed/heading off a fix we're rejecting for distance.
+      lastSpeedMph = null;
+      lastHeading = null;
+      report();
+      return;
+    }
+
+    lastError = null; // a usable fix supersedes any earlier failure
+
+    // The spec leaves heading NaN (not just null) when the device is
+    // stationary, so a plain null-check isn't enough.
+    lastHeading = Number.isFinite(heading) && heading >= 0 ? heading : null;
+
+    // Plausibility-gate the speed before showing it or letting it set the
+    // drive's top speed: drop GPS artefacts (IMPLAUSIBLE_SPEED_MPH) and any
+    // reading that implies impossible acceleration since the last trusted one.
+    // A gap of several seconds (backgrounded app) makes the allowed delta
+    // large, which is the honest answer — we can't judge across it.
+    let speedMph = metersPerSecondToMph(speed);
+    if (speedMph != null && speedMph > IMPLAUSIBLE_SPEED_MPH) speedMph = null;
+    if (speedMph != null && lastAcceptedSpeed != null && lastAcceptedSpeedAt != null) {
+      const dtSec = (timeMs - lastAcceptedSpeedAt) / 1000;
+      if (dtSec > 0 && speedMph - lastAcceptedSpeed > MAX_ACCEL_MPH_PER_S * dtSec) {
+        speedMph = null;
+      }
+    }
+    lastSpeedMph = speedMph;
+    if (speedMph != null) {
+      lastAcceptedSpeed = speedMph;
+      lastAcceptedSpeedAt = timeMs;
+      if (maxSpeedMph == null || speedMph > maxSpeedMph) maxSpeedMph = speedMph;
+    }
+
+    if (lastFix) {
+      const delta = haversineMiles(lastFix.latitude, lastFix.longitude, latitude, longitude);
+      // An implausible jump between fixes doesn't count toward mileage — it is
+      // a gap in tracking (backgrounded app, tunnel), not distance we can
+      // vouch for. lastFix still advances: leaving it behind would measure
+      // every later fix against a stale point, and once the car had moved more
+      // than MAX_JUMP_MILES away, every one of them would be rejected too and
+      // tracking would never recover for the rest of the drive.
+      if (delta <= MAX_JUMP_MILES) totalMiles += delta;
+    }
+
+    lastFix = { latitude, longitude };
+    route.push({ lat: latitude, lng: longitude });
+    status = 'tracking';
+    report();
+  };
+
+  // One failure, normalized to { code, message } where code follows the
+  // GeolocationPositionError spec numbers. Compared against 1 and 2 rather
+  // than error.PERMISSION_DENIED etc.: hand it anything that isn't a real
+  // GeolocationPositionError and both sides are undefined, so a plain timeout
+  // would report as a denied permission. Comparing to numbers just doesn't
+  // match instead.
+  const handleError = (error) => {
+    lastError = { code: error?.code ?? null, message: error?.message || '' };
+    if (error?.code === GEO_PERMISSION_DENIED) status = 'denied';
+    else if (error?.code === GEO_POSITION_UNAVAILABLE) status = 'unavailable';
+    // A timeout just means no fix yet; the watch keeps trying, so the honest
+    // state is still 'waiting' unless we already had one.
+    else if (route.length === 0) status = 'waiting';
+    report();
+  };
+
+  // Native + background: the community background-geolocation plugin. Its
+  // callback keeps firing while the app is backgrounded (iOS location
+  // background mode / Android foreground service).
+  if (options.background && Capacitor.isNativePlatform()) {
+    let watcherId = null;
+    let removed = false;
+
+    report(); // 'waiting'
+
+    BackgroundGeolocation.addWatcher(
+      {
+        // Defining backgroundMessage is what enables background delivery.
+        backgroundTitle: options.backgroundTitle || 'Recording your drive',
+        backgroundMessage:
+          options.backgroundMessage || 'Mileage and route are still being logged.',
+        requestPermissions: true,
+        stale: false,
+        distanceFilter: 10,
+      },
+      (location, error) => {
+        if (error) {
+          handleError(
+            error.code === 'NOT_AUTHORIZED'
+              ? { code: GEO_PERMISSION_DENIED, message: error.message }
+              : { code: GEO_POSITION_UNAVAILABLE, message: error?.message }
+          );
+          return;
+        }
+        if (!location) return;
+        handleFix(
+          {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+            speed: location.speed,
+            heading: location.bearing, // plugin's name for heading
+          },
+          location.time ?? Date.now()
+        );
+      }
+    )
+      .then((id) => {
+        watcherId = id;
+        if (removed) BackgroundGeolocation.removeWatcher({ id }).catch(() => {});
+      })
+      .catch((e) => handleError({ code: GEO_POSITION_UNAVAILABLE, message: String(e?.message || e) }));
+
+    return () => {
+      removed = true;
+      if (watcherId != null) BackgroundGeolocation.removeWatcher({ id: watcherId }).catch(() => {});
+    };
+  }
+
   if (!navigator.geolocation) {
     status = 'unsupported';
     report();
@@ -222,79 +367,8 @@ export function startMileageTracking(onUpdate) {
   report(); // 'waiting', so the UI can say so before the first fix lands
 
   watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      const { latitude, longitude, accuracy, speed, heading } = position.coords;
-      lastAccuracy = accuracy ?? null;
-
-      // A very inaccurate fix can swing distance wildly, so it isn't recorded
-      // — but it is reported, so the timer can tell the driver that location
-      // is too coarse to log rather than just showing nothing.
-      if (accuracy != null && accuracy > MAX_ACCURACY_METERS) {
-        status = 'imprecise';
-        // Don't vouch for speed/heading off a fix we're rejecting for distance.
-        lastSpeedMph = null;
-        lastHeading = null;
-        report();
-        return;
-      }
-
-      lastError = null; // a usable fix supersedes any earlier failure
-
-      // The spec leaves heading NaN (not just null) when the device is
-      // stationary, so a plain null-check isn't enough.
-      lastHeading = Number.isFinite(heading) && heading >= 0 ? heading : null;
-
-      // Plausibility-gate the speed before showing it or letting it set the
-      // drive's top speed: drop GPS artefacts (IMPLAUSIBLE_SPEED_MPH) and any
-      // reading that implies impossible acceleration since the last trusted
-      // one. A gap of several seconds (backgrounded app) makes the allowed
-      // delta large, which is the honest answer — we can't judge across it.
-      let speedMph = metersPerSecondToMph(speed);
-      if (speedMph != null && speedMph > IMPLAUSIBLE_SPEED_MPH) speedMph = null;
-      if (speedMph != null && lastAcceptedSpeed != null && lastAcceptedSpeedAt != null) {
-        const dtSec = (position.timestamp - lastAcceptedSpeedAt) / 1000;
-        if (dtSec > 0 && speedMph - lastAcceptedSpeed > MAX_ACCEL_MPH_PER_S * dtSec) {
-          speedMph = null;
-        }
-      }
-      lastSpeedMph = speedMph;
-      if (speedMph != null) {
-        lastAcceptedSpeed = speedMph;
-        lastAcceptedSpeedAt = position.timestamp;
-        if (maxSpeedMph == null || speedMph > maxSpeedMph) maxSpeedMph = speedMph;
-      }
-
-      if (lastFix) {
-        const delta = haversineMiles(lastFix.latitude, lastFix.longitude, latitude, longitude);
-        // An implausible jump between fixes doesn't count toward mileage — it
-        // is a gap in tracking (backgrounded app, tunnel), not distance we can
-        // vouch for. lastFix still advances: leaving it behind would measure
-        // every later fix against a stale point, and once the car had moved
-        // more than MAX_JUMP_MILES away, every one of them would be rejected
-        // too and tracking would never recover for the rest of the drive.
-        if (delta <= MAX_JUMP_MILES) totalMiles += delta;
-      }
-
-      lastFix = { latitude, longitude };
-      route.push({ lat: latitude, lng: longitude });
-      status = 'tracking';
-      report();
-    },
-    (error) => {
-      // Compared against the spec's numeric codes rather than constants read
-      // off the error object. `error.code === error.PERMISSION_DENIED` looks
-      // equivalent but is not: hand it anything that isn't a real
-      // GeolocationPositionError and both sides are undefined, so it matches
-      // and every failure — a plain timeout included — is reported as a
-      // denied permission. Comparing to 1 and 2 simply doesn't match instead.
-      lastError = { code: error?.code ?? null, message: error?.message || '' };
-      if (error?.code === GEO_PERMISSION_DENIED) status = 'denied';
-      else if (error?.code === GEO_POSITION_UNAVAILABLE) status = 'unavailable';
-      // A TIMEOUT just means no fix yet; watchPosition keeps trying, so the
-      // honest state is still 'waiting' unless we already had one.
-      else if (route.length === 0) status = 'waiting';
-      report();
-    },
+    (position) => handleFix(position.coords, position.timestamp),
+    (error) => handleError(error),
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
   );
 

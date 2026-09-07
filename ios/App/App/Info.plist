@@ -29,6 +29,18 @@
 	<key>NSMotionUsageDescription</key>
 	<string>Student Driver Log reads motion sensors only while you are timing a practice drive, to spot hard braking and harsh turns and give the supervising adult a heads-up. This data stays on your device. You can decline and still time drives normally.</string>
 	<!--
+	  Lets a drive keep recording mileage and route while the app is
+	  backgrounded (the supervisor switches to Maps, etc.). "When In Use" is
+	  enough for this — iOS permits background location under it while this
+	  mode is declared and the blue status-bar indicator is showing. No
+	  "Always" authorization is requested; tracking still stops if the app is
+	  fully closed. See docs/background-drive-tracking-spec.md.
+	-->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<!--
 	  Google Sign-In (via @capacitor-firebase/authentication) redirects back
 	  into the app through this custom URL scheme once the user picks an
 	  account — this is the REVERSED_CLIENT_ID from GoogleService-Info.plist

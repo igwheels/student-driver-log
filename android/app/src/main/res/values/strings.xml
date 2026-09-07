@@ -4,4 +4,8 @@
     <string name="title_activity_main">Student Driver Log</string>
     <string name="package_name">com.devworksllc.sdl</string>
     <string name="custom_url_scheme">com.devworksllc.sdl</string>
+    <!-- @capacitor-community/background-geolocation: the persistent notification
+         shown while a drive records in the background. -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Drive tracking</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_drive</string>
 </resources>
