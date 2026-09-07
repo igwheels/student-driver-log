@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { STATE_LIST, STATE_REQUIREMENTS } from '../data/stateRequirements';
+import { FREE_STUDENT_LIMIT } from '../utils/entitlements';
 
 export default function AddStudent() {
-  const { addStudent, students, findExistingStudentByEmail, requestStudentAccess } = useApp();
+  const { addStudent, students, findExistingStudentByEmail, requestStudentAccess, isOwner, hasFamilyPack } = useApp();
   const navigate = useNavigate();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -18,7 +19,23 @@ export default function AddStudent() {
 
   const req = state ? STATE_REQUIREMENTS[state] : null;
 
+  // Free-tier cap: one OWNED student. `students` mixes owned and
+  // shared-with-me dashboards, so this counts only the former — a free
+  // account that already has a dashboard shared with them by a Family Pack
+  // household isn't blocked from adding their own single student by that.
+  // Checked here rather than earlier in handleSave so both entry points
+  // (normal submit, and "Create new" from the duplicate-dashboard modal)
+  // go through the same gate.
+  const ownedCount = students.filter((s) => isOwner(s.id)).length;
+  const atFreeStudentLimit = !hasFamilyPack && ownedCount >= FREE_STUDENT_LIMIT;
+
   const createStudent = async () => {
+    if (atFreeStudentLimit) {
+      setError(
+        "Free accounts are limited to one student driver. Family Pack removes that limit — it isn't available to purchase in the app yet, but it's coming."
+      );
+      return;
+    }
     const id = await addStudent({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), state });
     navigate(`/dashboard/${id}`);
   };

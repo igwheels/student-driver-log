@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { studentHasFamilyPack } from '../utils/entitlements';
 
 export default function ShareModal({ studentId, student, onClose, onShare }) {
   const { shareStudent } = useApp();
@@ -8,10 +9,28 @@ export default function ShareModal({ studentId, student, onClose, onShare }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Keys off the STUDENT's (i.e. the owning household's) entitlement, not
+  // the viewer's own — a free co-parent shared onto a Family Pack owner's
+  // student can still add another supervisor to that student; a free
+  // owner's own student can't gain a new share until the owner buys
+  // Family Pack. See DEV-36 for why this split matters.
+  //
+  // Existing shares are never affected by this — shareStudent() is only
+  // ever called from the form below, which isn't rendered at all when this
+  // is false. Nothing here reads or touches sharedWithEmails/sharedWith on
+  // an existing student, so a share made before this gate existed (or
+  // before Family Pack existed at all) keeps working exactly as before.
+  const canShare = studentHasFamilyPack(student);
+
   const handleShare = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    // Defense in depth — the form below isn't rendered when !canShare, so
+    // this shouldn't be reachable, but never send a share write for a
+    // student that isn't entitled to one.
+    if (!canShare) return;
 
     if (!email.trim()) {
       setError('Please enter an email address');
@@ -41,6 +60,26 @@ export default function ShareModal({ studentId, student, onClose, onShare }) {
       setLoading(false);
     }
   };
+
+  // Free-tier student: don't present a form that's guaranteed to fail on
+  // submit. Family Pack isn't purchasable in the app yet, so the message
+  // says that plainly rather than pointing at an upgrade button to nowhere.
+  if (!canShare) {
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
+          <h3 style={{ fontSize: 18, marginBottom: 16 }}>Share {student.firstName}'s Profile</h3>
+          <p style={{ fontSize: 14, color: 'var(--navy)' }}>
+            Sharing a dashboard with another parent or supervisor is a Family Pack feature. Family Pack isn't
+            available to purchase in the app yet — check back soon.
+          </p>
+          <button className="btn btn-primary" style={{ marginTop: 16, width: '100%' }} onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

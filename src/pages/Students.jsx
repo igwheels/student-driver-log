@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
+import { FREE_STUDENT_LIMIT } from '../utils/entitlements';
 
 // Whole hours, rounded to one decimal — enough to see progress at a glance
 // without the card turning into a second dashboard.
@@ -52,11 +53,15 @@ function StudentCard({ student, totals, shared }) {
 }
 
 export default function Students() {
-  const { students, isOwner, getTotals } = useApp();
+  const { students, isOwner, getTotals, hasFamilyPack } = useApp();
   const navigate = useNavigate();
 
   const owned = students.filter((s) => isOwner(s.id));
   const shared = students.filter((s) => !isOwner(s.id));
+  // Same rule AddStudent.jsx enforces on submit — surfaced here too so a
+  // free account sees why the button won't do anything before they click
+  // it, rather than clicking through to a form that just rejects them.
+  const atFreeStudentLimit = !hasFamilyPack && owned.length >= FREE_STUDENT_LIMIT;
 
   return (
     <div className="page">
@@ -81,9 +86,20 @@ export default function Students() {
         </div>
       )}
 
-      <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => navigate('/add-student')}>
+      <button
+        className="btn btn-primary"
+        style={{ marginTop: 12 }}
+        onClick={() => navigate('/add-student')}
+        disabled={atFreeStudentLimit}
+      >
         + Add a student driver
       </button>
+      {atFreeStudentLimit && (
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 8 }}>
+          Free accounts are limited to one student driver. Family Pack (unlimited students) isn't available to
+          purchase in the app yet.
+        </p>
+      )}
     </div>
   );
 }

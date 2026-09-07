@@ -13,6 +13,13 @@ const ENTITLEMENTS_SUBCOLLECTION = 'entitlements';
 const FAMILY_PACK_ENTITLEMENT_ID = 'familyPack';
 export const FAMILY_PACK_PRODUCT_ID = 'family_pack_lifetime';
 
+// Free-tier limits (product decision, 2026-09-07): a free account owns at
+// most one student and can't share a dashboard with another supervisor —
+// the owner is the only supervisor. Family Pack removes both limits
+// (unlimited students, plus sharing). CSV export is NOT gated — it stays
+// free regardless of entitlement; see src/pages/Dashboard.jsx.
+export const FREE_STUDENT_LIMIT = 1;
+
 // Live-subscribes to the signed-in user's OWN entitlement doc. Used for
 // gates on actions the account owner performs (adding another student,
 // sharing with another supervisor) — see the DEV-36 report for why those
