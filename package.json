@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "replay-telematics": "node scripts/replay-telematics.mjs"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.5.1",

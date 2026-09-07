@@ -1,145 +1,130 @@
 import { Motion } from '@capacitor/motion';
+import {
+  THRESHOLDS,
+  createTelematicsState,
+  normalizeMotionSample,
+  processSample,
+} from './telematicsCore';
 
-const G = 9.80665;
-
-// ───────────────────────────────────────────────────────────────────────────
-// UNVERIFIED THRESHOLDS.
-//
-// The DEV-34 spec is explicit: these must be tuned against real driving data
-// before the feature is trusted, because false positives would erode
-// confidence in the safety cue. So detection is OFF by default — see
-// telematicsEnabled() — and is a field-tuning switch until calibrated. The
-// numbers below are physically-reasoned starting points, not measured.
-// ───────────────────────────────────────────────────────────────────────────
-
-// Hard braking: sustained linear deceleration. ~0.3 g is firm normal braking;
-// 0.45 g is a deliberate hard stop; ABS/emergency territory is ~0.7 g+. Note
-// this currently keys off longitudinal-accel *magnitude*, so hard throttle
-// trips it too — separating brake from accelerate needs the car's forward
-// axis, which needs an orientation-calibration step this version doesn't do.
-const HARD_BRAKE_MS2 = 0.45 * G;
-
-// Harsh turn: yaw rate about the vertical axis. A brisk corner is ~15–25
-// deg/s; a swerve or a corner taken too fast climbs past ~40.
-const HARSH_TURN_DEG_S = 40;
-
-// The signal must stay past threshold this long — rejects one-off spikes
-// (a pothole, the phone being picked up).
-const EVENT_MIN_DURATION_MS = 250;
-
-// At most one event of each type per this window.
-const EVENT_COOLDOWN_MS = 3000;
-
-// Below this speed it isn't a driving event — a phone jostled while parked or
-// carried. Uses the GPS speed already flowing through geo.js; when speed is
-// unknown (device doesn't report it) the gate is lenient rather than mute the
-// feature entirely.
-const MIN_SPEED_MPH = 5;
-
-// Exponential smoothing on the event signals (0 = frozen, 1 = raw sample).
-const SIGNAL_SMOOTHING = 0.35;
-// Much slower low-pass that estimates the gravity vector, so it can be
-// subtracted from accelerationIncludingGravity (the only field Android
-// reliably populates) to recover linear acceleration.
-const GRAVITY_SMOOTHING = 0.02;
-// Ignore the first second while the gravity estimate converges from zero.
-const WARMUP_MS = 1000;
+// Signal processing + thresholds live in telematicsCore.js (pure, replayable).
+// This module is the @capacitor/motion plumbing plus the debug/capture modes
+// used for real-device threshold tuning.
 
 const PREF_KEY = 'sdl_telematics';
 
 /**
- * Whether hard-brake / harsh-turn detection runs during a drive. Defaults
- * OFF — the thresholds above are unverified, and the spec says not to trust
- * them until they're checked against real drives. Flip it on (localStorage
- * 'sdl_telematics' = 'on') for field tuning.
+ * localStorage 'sdl_telematics':
+ *   (unset) / 'off' — no detection. The default: the thresholds are
+ *                     unverified and the spec says not to trust them yet.
+ *   'on'            — detect, buzz, count.
+ *   'debug'         — 'on' + a throttled console trace of the smoothed
+ *                     signals vs. their thresholds, and every event.
+ *   'capture'       — 'on' + records every raw sample; downloads (and
+ *                     console-dumps) a CSV when the drive ends, for
+ *                     scripts/replay-telematics.mjs.
  */
-export function telematicsEnabled() {
+export function telematicsMode() {
   try {
-    return localStorage.getItem(PREF_KEY) === 'on';
+    const v = localStorage.getItem(PREF_KEY);
+    return v === 'on' || v === 'debug' || v === 'capture' ? v : 'off';
   } catch {
-    return false;
+    return 'off';
   }
 }
 
-export function setTelematicsEnabled(on) {
+export function telematicsEnabled() {
+  return telematicsMode() !== 'off';
+}
+
+export function setTelematicsMode(mode) {
   try {
-    localStorage.setItem(PREF_KEY, on ? 'on' : 'off');
+    localStorage.setItem(PREF_KEY, mode);
   } catch {
-    // Non-persistent is fine — it just reverts to the (off) default.
+    // Non-persistent is fine — it reverts to the 'off' default.
   }
 }
+
+// Kept from the earlier on/off-only helper.
+export function setTelematicsEnabled(on) {
+  setTelematicsMode(on ? 'on' : 'off');
+}
+
+const DEBUG_LOG_EVERY_MS = 250;
+const CAPTURE_HEADER = 't,x,y,z,rAlpha,speedMph,linMag,smBrake,smYaw';
 
 /**
- * Starts accelerometer/gyro monitoring for the duration of a drive.
+ * Watches accelerometer / gyro for the duration of a drive.
  *
  * `getSpeedMph()` is polled per sample for the speed gate; `onEvent({ type,
- * magnitude, at })` fires on a detected 'hard-brake' or 'harsh-turn'. The
- * caller decides what to do with an event (buzz, count, record) — this
- * module is detection only.
+ * magnitude, at })` fires on a detected 'hard-brake' / 'harsh-turn'. The
+ * caller decides what to do with an event — this module is detection only
+ * (plus the tuning instrumentation).
  *
- * Returns a stop() function synchronously; listener attach and the iOS
- * motion-permission request happen in the background and are unwound by
- * stop() whether or not they finished.
+ * Returns stop() synchronously; the listener attach and the iOS
+ * motion-permission request run in the background and are unwound by stop()
+ * whether or not they finished. In 'capture' mode, stop() also emits the CSV.
  */
 export function startDriveTelematics({ getSpeedMph, onEvent } = {}) {
+  const mode = telematicsMode();
   let stopped = false;
   let accelHandle = null;
-  const startedAt = Date.now();
 
-  let gx = 0;
-  let gy = 0;
-  let gz = 0;
-  let smBrake = 0;
-  let smYaw = 0;
-  const overSince = { 'hard-brake': null, 'harsh-turn': null };
-  const lastFired = { 'hard-brake': 0, 'harsh-turn': 0 };
-
-  const evaluate = (type, over, magnitude, now, movingFastEnough) => {
-    if (!over || !movingFastEnough) {
-      overSince[type] = null;
-      return;
-    }
-    if (overSince[type] == null) overSince[type] = now;
-    if (now - overSince[type] < EVENT_MIN_DURATION_MS) return;
-    if (now - lastFired[type] < EVENT_COOLDOWN_MS) return;
-    lastFired[type] = now;
-    overSince[type] = null;
-    onEvent?.({ type, magnitude, at: now });
-  };
+  const state = createTelematicsState();
+  const captureRows = mode === 'capture' ? [] : null;
+  let lastDebugAt = 0;
 
   const onSample = (e) => {
-    const now = Date.now();
-    const s = e.accelerationIncludingGravity || e.acceleration || {};
-    const x = s.x || 0;
-    const y = s.y || 0;
-    const z = s.z || 0;
+    const sample = normalizeMotionSample(e, {
+      t: Date.now(),
+      speedMph: getSpeedMph?.() ?? null,
+    });
+    const { events, debug } = processSample(state, sample);
 
-    gx += GRAVITY_SMOOTHING * (x - gx);
-    gy += GRAVITY_SMOOTHING * (y - gy);
-    gz += GRAVITY_SMOOTHING * (z - gz);
+    if (captureRows) {
+      captureRows.push(
+        [
+          sample.t,
+          r4(sample.x),
+          r4(sample.y),
+          r4(sample.z),
+          r4(sample.rAlpha),
+          sample.speedMph ?? '',
+          r4(debug.linMag),
+          r4(debug.smBrake),
+          r4(debug.smYaw),
+        ].join(',')
+      );
+    }
 
-    const linMag = Math.hypot(x - gx, y - gy, z - gz);
-    const yawRate = Math.abs(e.rotationRate?.alpha || 0);
+    if (mode === 'debug' && sample.t - lastDebugAt >= DEBUG_LOG_EVERY_MS) {
+      lastDebugAt = sample.t;
+      const bPct = ((debug.smBrake / THRESHOLDS.hardBrakeMs2) * 100) | 0;
+      const yPct = ((debug.smYaw / THRESHOLDS.harshTurnDegS) * 100) | 0;
+      console.log(
+        `[tele] +${((sample.t - state.startedAt) / 1000).toFixed(1)}s ` +
+          `spd=${debug.speedMph ?? '–'} ` +
+          `brake=${debug.smBrake.toFixed(2)} (${bPct}%${debug.holdBrakeMs ? ` hold ${debug.holdBrakeMs | 0}ms` : ''}) ` +
+          `yaw=${debug.smYaw.toFixed(0)} (${yPct}%${debug.holdYawMs ? ` hold ${debug.holdYawMs | 0}ms` : ''})` +
+          `${debug.warm ? '' : ' [warmup]'}`
+      );
+    }
 
-    smBrake += SIGNAL_SMOOTHING * (linMag - smBrake);
-    smYaw += SIGNAL_SMOOTHING * (yawRate - smYaw);
-
-    if (now - startedAt < WARMUP_MS) return;
-
-    const speed = getSpeedMph?.();
-    const movingFastEnough = speed == null || speed >= MIN_SPEED_MPH;
-
-    // A turn also throws linear accel, so gate hard-brake on low yaw to keep
-    // one physical event from firing as both.
-    evaluate('hard-brake', smBrake > HARD_BRAKE_MS2 && smYaw < HARSH_TURN_DEG_S, smBrake, now, movingFastEnough);
-    evaluate('harsh-turn', smYaw > HARSH_TURN_DEG_S, smYaw, now, movingFastEnough);
+    for (const ev of events) {
+      if (mode === 'debug' || mode === 'capture') {
+        console.log(
+          `[tele] EVENT ${ev.type} mag=${ev.magnitude.toFixed(2)} ` +
+            `at +${((ev.at - state.startedAt) / 1000).toFixed(1)}s`
+        );
+      }
+      onEvent?.(ev);
+    }
   };
 
   (async () => {
     // iOS 13+ (Safari and the WKWebView) gate motion behind an explicit
-    // permission call that must come from a user gesture. The drive starts
-    // from a tap, but the async hop here may already be past that window; if
-    // the request rejects, telematics just doesn't run this drive.
+    // permission call that must originate from a user gesture. The drive
+    // starts from a tap, but the async hop here may already be past that
+    // window; if the request rejects, telematics just doesn't run this drive.
     try {
       const req =
         typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission;
@@ -161,7 +146,34 @@ export function startDriveTelematics({ getSpeedMph, onEvent } = {}) {
   })();
 
   return () => {
+    if (stopped) return;
     stopped = true;
     accelHandle?.remove?.();
+    if (captureRows) dumpCapture(captureRows);
   };
+}
+
+function r4(n) {
+  return typeof n === 'number' ? Math.round(n * 1e4) / 1e4 : n;
+}
+
+function dumpCapture(rows) {
+  const csv = [CAPTURE_HEADER, ...rows].join('\n');
+  try {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `telematics-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch {
+    // Fall through to the console dump.
+  }
+  // Always print it too: <a download> is inert in some WKWebView contexts,
+  // and you'll usually be driving the inspector from a laptop anyway. Copy
+  // the block below out of the console and save it as a .csv.
+  console.log(`[tele] capture: ${rows.length} samples\n${csv}`);
 }
