@@ -4,6 +4,8 @@ import { startMileageTracking } from '../utils/geo';
 import { keepScreenAwake } from '../utils/device';
 import { savePendingDrive } from '../utils/pendingDrive';
 import { localOffsetMinutes } from '../utils/driveTime';
+import { startDriveTelematics, telematicsEnabled } from '../utils/telematics';
+import { pulseSafetyAlert } from '../utils/haptics';
 
 // What to tell the driver about GPS before any mileage has accumulated.
 // `warning: true` means mileage will not be recorded in this state, so it is
@@ -54,9 +56,14 @@ export default function DriveTimer() {
   const [elapsed, setElapsed] = useState(0);
   const [miles, setMiles] = useState(0);
   const [gps, setGps] = useState({ status: 'waiting', accuracy: null, speedMph: null, maxSpeedMph: null });
+  // hard-brake / harsh-turn counts for this drive. Only ever non-zero when
+  // telematics detection is switched on (off by default — see telematics.js).
+  const [safetyEvents, setSafetyEvents] = useState({ hardBrake: 0, harshTurn: 0 });
+  const safetyEventsRef = useRef({ hardBrake: 0, harshTurn: 0 });
   const interval = useRef(null);
   const trackingRef = useRef({ miles: 0, start: null, end: null, route: [], maxSpeedMph: null });
   const stopTracking = useRef(null);
+  const stopTelematics = useRef(null);
   const releaseWakeLock = useRef(null);
 
   useEffect(() => {
@@ -74,10 +81,25 @@ export default function DriveTimer() {
         error: update.error,
       });
     });
+    if (telematicsEnabled()) {
+      stopTelematics.current = startDriveTelematics({
+        getSpeedMph: () => trackingRef.current?.speedMph ?? null,
+        onEvent: ({ type }) => {
+          pulseSafetyAlert();
+          const key = type === 'harsh-turn' ? 'harshTurn' : 'hardBrake';
+          safetyEventsRef.current = {
+            ...safetyEventsRef.current,
+            [key]: safetyEventsRef.current[key] + 1,
+          };
+          setSafetyEvents(safetyEventsRef.current);
+        },
+      });
+    }
     releaseWakeLock.current = keepScreenAwake();
     return () => {
       clearInterval(interval.current);
       stopTracking.current?.();
+      stopTelematics.current?.();
       releaseWakeLock.current?.();
     };
   }, [startTime]);
@@ -89,14 +111,17 @@ export default function DriveTimer() {
   const endDrive = () => {
     clearInterval(interval.current);
     stopTracking.current?.();
+    stopTelematics.current?.();
     const endTime = new Date();
     const { miles: trackedMiles, start, end, route, maxSpeedMph } = trackingRef.current;
+    const ev = safetyEventsRef.current;
     const prefill = {
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       startOffsetMinutes,
       distanceMiles: trackedMiles > 0 ? Number(trackedMiles.toFixed(1)) : null,
       maxSpeedMph: maxSpeedMph != null ? Math.round(maxSpeedMph) : null,
+      safetyEventCounts: ev.hardBrake || ev.harshTurn ? { ...ev } : null,
       startLocation: start,
       endLocation: end,
       route: route && route.length > 1 ? route : null,
@@ -139,6 +164,13 @@ export default function DriveTimer() {
       ) : (
         <div className="timer-miles" style={gpsNotice(gps).warning ? { color: 'var(--danger)' } : undefined}>
           {gpsNotice(gps).label}
+        </div>
+      )}
+      {(safetyEvents.hardBrake > 0 || safetyEvents.harshTurn > 0) && (
+        <div className="timer-events">
+          {safetyEvents.hardBrake > 0 && `${safetyEvents.hardBrake} hard braking`}
+          {safetyEvents.hardBrake > 0 && safetyEvents.harshTurn > 0 && ' · '}
+          {safetyEvents.harshTurn > 0 && `${safetyEvents.harshTurn} harsh turn${safetyEvents.harshTurn > 1 ? 's' : ''}`}
         </div>
       )}
       <button className="ignition-btn" onClick={endDrive}>End Drive</button>

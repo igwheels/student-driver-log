@@ -39,7 +39,11 @@ export function setSafetyHapticsEnabled(on) {
  */
 export function hapticsAvailable() {
   if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('Haptics')) return true;
-  return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false;
+  // Desktop Chrome exposes navigator.vibrate but has nothing to vibrate, so
+  // require a touch-capable device — otherwise the Account toggle shows up on
+  // laptops where it silently does nothing.
+  return navigator.maxTouchPoints > 0;
 }
 
 /**
