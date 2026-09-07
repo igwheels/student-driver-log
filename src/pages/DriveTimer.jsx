@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { startMileageTracking } from '../utils/geo';
 import { keepScreenAwake } from '../utils/device';
 import { savePendingDrive } from '../utils/pendingDrive';
+import { saveActiveDrive, readActiveDrive, clearActiveDrive } from '../utils/activeDrive';
 import { localOffsetMinutes } from '../utils/driveTime';
 import { startDriveTelematics, telematicsEnabled } from '../utils/telematics';
 import { pulseSafetyAlert } from '../utils/haptics';
@@ -50,36 +51,87 @@ function gpsNotice({ status, accuracy }) {
 export default function DriveTimer() {
   const { studentId } = useParams();
   const navigate = useNavigate();
-  const [startTime] = useState(() => new Date());
+  const [searchParams] = useSearchParams();
+
+  // Arrived via the Dashboard's "Resume" on a checkpoint left by a drive
+  // whose app was killed mid-timing (see utils/activeDrive.js). Read once.
+  const [resumed] = useState(() => {
+    if (searchParams.get('resume') !== '1') return null;
+    const cp = readActiveDrive();
+    return cp && cp.studentId === studentId ? cp : null;
+  });
+
+  const [startTime] = useState(() => (resumed ? new Date(resumed.startTime) : new Date()));
   // Captured when the drive begins, so a drive that crosses into another zone
   // is still written down in the one it started in — see utils/driveTime.js.
-  const [startOffsetMinutes] = useState(() => localOffsetMinutes());
+  const [startOffsetMinutes] = useState(() => resumed?.startOffsetMinutes ?? localOffsetMinutes());
   const [elapsed, setElapsed] = useState(0);
-  const [miles, setMiles] = useState(0);
+  const [miles, setMiles] = useState(resumed?.miles ?? 0);
   const [gps, setGps] = useState({ status: 'waiting', accuracy: null, speedMph: null, maxSpeedMph: null });
   // hard-brake / harsh-turn counts for this drive. Only ever non-zero when
   // telematics detection is switched on (off by default — see telematics.js).
-  const [safetyEvents, setSafetyEvents] = useState({ hardBrake: 0, harshTurn: 0 });
-  const safetyEventsRef = useRef({ hardBrake: 0, harshTurn: 0 });
+  const [safetyEvents, setSafetyEvents] = useState(
+    () => resumed?.safetyEventCounts ?? { hardBrake: 0, harshTurn: 0 }
+  );
+  const safetyEventsRef = useRef(resumed?.safetyEventCounts ?? { hardBrake: 0, harshTurn: 0 });
   const interval = useRef(null);
-  const trackingRef = useRef({ miles: 0, start: null, end: null, route: [], maxSpeedMph: null });
+  const checkpoint = useRef(null);
+  const trackingRef = useRef(
+    resumed
+      ? {
+          miles: resumed.miles ?? 0,
+          start: resumed.start ?? null,
+          end: resumed.end ?? null,
+          route: resumed.route ?? [],
+          maxSpeedMph: resumed.maxSpeedMph ?? null,
+        }
+      : { miles: 0, start: null, end: null, route: [], maxSpeedMph: null }
+  );
   const stopTracking = useRef(null);
   const stopTelematics = useRef(null);
   const releaseWakeLock = useRef(null);
 
   useEffect(() => {
+    // A resumed drive keeps its pre-kill miles/route as a fixed base; a fresh
+    // tracking session only reports what it records from here.
+    const base = resumed;
+
+    const writeCheckpoint = () => {
+      const t = trackingRef.current;
+      saveActiveDrive(studentId, {
+        startTime: startTime.toISOString(),
+        startOffsetMinutes,
+        miles: t.miles,
+        route: t.route,
+        start: t.start,
+        end: t.end,
+        maxSpeedMph: t.maxSpeedMph,
+        safetyEventCounts: safetyEventsRef.current,
+      });
+    };
+
     interval.current = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000));
     }, 1000);
     stopTracking.current = startMileageTracking(
       (update) => {
-        trackingRef.current = update;
-        setMiles(update.miles);
+        const combined = base
+          ? {
+              ...update,
+              miles: (base.miles ?? 0) + update.miles,
+              route: [...(base.route ?? []), ...update.route],
+              start: base.start ?? update.start,
+              end: update.end ?? base.end ?? null,
+              maxSpeedMph: Math.max(base.maxSpeedMph ?? 0, update.maxSpeedMph ?? 0) || null,
+            }
+          : update;
+        trackingRef.current = combined;
+        setMiles(combined.miles);
         setGps({
           status: update.status,
           accuracy: update.accuracy,
           speedMph: update.speedMph,
-          maxSpeedMph: update.maxSpeedMph,
+          maxSpeedMph: combined.maxSpeedMph,
           error: update.error,
         });
       },
@@ -87,6 +139,11 @@ export default function DriveTimer() {
       // flag on web — falls back to watchPosition.
       { background: true }
     );
+
+    // Checkpoint straight away (catches a kill in the first 20 s) then on a
+    // slow interval — see utils/activeDrive.js.
+    writeCheckpoint();
+    checkpoint.current = setInterval(writeCheckpoint, 20000);
     if (telematicsEnabled()) {
       stopTelematics.current = startDriveTelematics({
         getSpeedMph: () => trackingRef.current?.speedMph ?? null,
@@ -104,9 +161,13 @@ export default function DriveTimer() {
     releaseWakeLock.current = keepScreenAwake();
     return () => {
       clearInterval(interval.current);
+      clearInterval(checkpoint.current);
       stopTracking.current?.();
       stopTelematics.current?.();
       releaseWakeLock.current?.();
+      // Leave the checkpoint in place on a plain unmount (back button, tab
+      // switch) so the Dashboard can still offer to resume. Only End Drive
+      // and an explicit Discard clear it.
     };
   }, [startTime]);
 
@@ -116,8 +177,10 @@ export default function DriveTimer() {
 
   const endDrive = () => {
     clearInterval(interval.current);
+    clearInterval(checkpoint.current);
     stopTracking.current?.();
     stopTelematics.current?.();
+    clearActiveDrive(); // the drive is being handed to the log form now
     const endTime = new Date();
     const { miles: trackedMiles, start, end, route, maxSpeedMph } = trackingRef.current;
     const ev = safetyEventsRef.current;
