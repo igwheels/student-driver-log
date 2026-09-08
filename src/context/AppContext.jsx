@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
@@ -7,6 +8,12 @@ import {
 import { emailDocId } from '../utils/emailHash';
 import { STATE_REQUIREMENTS } from '../data/stateRequirements';
 import { watchOwnFamilyPack, studentHasFamilyPack, restorePurchases as restorePurchasesCall } from '../utils/entitlements';
+import {
+  isBiometricEnabledForUser,
+  hasAskedBiometricEnrollment,
+  checkBiometryAvailability,
+  addBiometricResumeListener,
+} from '../utils/biometricAuth';
 
 const AppContext = createContext(null);
 const STORAGE_KEY = 'sdl_data_v1';
@@ -37,6 +44,21 @@ export function AppProvider({ children }) {
   // a particular student's premium features; see studentHasFamilyPack
   // (src/utils/entitlements.js) for that half of the split.
   const [hasFamilyPack, setHasFamilyPack] = useState(false);
+  // DEV-28: a local unlock gate in front of this already-authenticated
+  // session, not a second auth system — see src/utils/biometricAuth.js's
+  // module comment for the full reasoning. biometricLocked gates
+  // rendering (App.jsx shows BiometricLockScreen as an overlay, not a
+  // route, so nothing underneath unmounts); showBiometricEnrollPrompt
+  // gates the one-time "enable Face ID?" offer after a fresh sign-in.
+  const [biometricLocked, setBiometricLocked] = useState(false);
+  const [showBiometricEnrollPrompt, setShowBiometricEnrollPrompt] = useState(false);
+  // True only for the very first onAuthStateChanged callback of this app
+  // load — the one that reports whatever session Firebase already had
+  // persisted, as opposed to one from an interactive sign-in just now.
+  // That distinction is the whole reason this doesn't lock someone
+  // immediately after they type their password: a fresh interactive
+  // sign-in already proved who they are.
+  const isFirstAuthCheck = useRef(true);
 
   // Keep app-level user state in sync with Firebase's actual auth session,
   // instead of relying solely on the one-time setUser() call at login. Without
@@ -49,6 +71,12 @@ export function AppProvider({ children }) {
   // own state reset on reload.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      // Captured before isFirstAuthCheck.current is overwritten below, so
+      // the biometric branch after this if/else still knows which case
+      // it's in.
+      const wasFirstCheck = isFirstAuthCheck.current;
+      isFirstAuthCheck.current = false;
+
       if (firebaseUser) {
         setUser((prev) =>
           prev && prev.id === firebaseUser.uid
@@ -59,6 +87,29 @@ export function AppProvider({ children }) {
                 email: firebaseUser.email,
               }
         );
+
+        // DEV-28. Two mutually exclusive cases, split on wasFirstCheck:
+        //  - Cold start with a session Firebase already had persisted ->
+        //    if this device has biometric unlock enabled for this
+        //    account, lock immediately (before anything renders on
+        //    screen unprotected).
+        //  - A fresh interactive sign-in (including one completed from
+        //    BiometricLockScreen's "Sign in another way" fallback) -> the
+        //    password/Google/Apple prompt they just completed IS the
+        //    proof of identity; never lock right on top of that. Instead,
+        //    if this account hasn't been asked before and the device
+        //    actually has biometrics available, offer to enable it.
+        if (Capacitor.isNativePlatform()) {
+          if (wasFirstCheck) {
+            if (isBiometricEnabledForUser(firebaseUser.uid)) {
+              setBiometricLocked(true);
+            }
+          } else if (!hasAskedBiometricEnrollment(firebaseUser.uid) && !isBiometricEnabledForUser(firebaseUser.uid)) {
+            checkBiometryAvailability().then(({ isAvailable }) => {
+              if (isAvailable) setShowBiometricEnrollPrompt(true);
+            });
+          }
+        }
       } else {
         setUser(null);
         // Don't leave a signed-out device holding a student's drive history —
@@ -68,6 +119,12 @@ export function AppProvider({ children }) {
         // next. Clearing state too keeps the save effect from rewriting it.
         setStudents([]);
         setLogs({});
+        // Nothing left to gate or offer once signed out — and this is what
+        // makes BiometricLockScreen's "Sign in another way" fallback work:
+        // its signOut(auth) call lands here, which is what actually clears
+        // biometricLocked (not the button itself).
+        setBiometricLocked(false);
+        setShowBiometricEnrollPrompt(false);
         try {
           localStorage.removeItem(STORAGE_KEY);
           localStorage.removeItem(SESSION_TOKEN_KEY);
@@ -79,6 +136,27 @@ export function AppProvider({ children }) {
     });
     return unsubscribe;
   }, []);
+
+  // Re-lock on resume (app backgrounded then foregrounded) if this
+  // account has biometric unlock enabled. Cold start is handled above in
+  // the onAuthStateChanged effect instead — the resume listener doesn't
+  // fire for a fresh launch, only for background -> foreground
+  // transitions after the app was already running.
+  useEffect(() => {
+    if (!user?.id) return;
+    let handle;
+    let cancelled = false;
+    addBiometricResumeListener(() => {
+      if (isBiometricEnabledForUser(user.id)) setBiometricLocked(true);
+    }).then((h) => {
+      if (cancelled) h.remove();
+      else handle = h;
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove();
+    };
+  }, [user?.id]);
 
   // Watches this account's active-session token once signed in. claimSession()
   // (called from Login.jsx right after a successful sign-in) sets this
@@ -700,6 +778,10 @@ export function AppProvider({ children }) {
         hasFamilyPack,
         studentHasFamilyPack,
         restorePurchases: restorePurchasesCall,
+        biometricLocked,
+        dismissBiometricLock: () => setBiometricLocked(false),
+        showBiometricEnrollPrompt,
+        dismissBiometricEnrollPrompt: () => setShowBiometricEnrollPrompt(false),
       }}
     >
       {children}

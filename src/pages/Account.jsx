@@ -16,6 +16,12 @@ import {
   setWeeklyEmailOptOut,
   deleteWeeklyEmailPreference,
 } from '../utils/emailPreferences';
+import {
+  checkBiometryAvailability,
+  isBiometricEnabledForUser,
+  setBiometricEnabledForUser,
+  authenticateWithBiometrics,
+} from '../utils/biometricAuth';
 
 const DELETE_PHRASE = 'Delete this account and all its dashboards forever.';
 
@@ -112,6 +118,48 @@ export default function Account() {
     } catch (err) {
       console.error('Failed to update email preference:', err);
       setWeeklyEmailOptIn(!checked);
+    }
+  };
+
+  // DEV-28: only shown at all if this device actually has biometrics
+  // available — a toggle for a feature the hardware can't do isn't a real
+  // choice, it's just clutter. checkBiometryAvailability() is a no-op
+  // returning isAvailable:false on web, so this naturally never shows
+  // there without needing its own platform check first.
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricError, setBiometricError] = useState('');
+  useEffect(() => {
+    if (!user?.id) return;
+    checkBiometryAvailability().then(({ isAvailable }) => {
+      setBiometricAvailable(isAvailable);
+      if (isAvailable) setBiometricEnabled(isBiometricEnabledForUser(user.id));
+    });
+  }, [user?.id]);
+
+  const handleBiometricToggle = async (e) => {
+    const checked = e.target.checked;
+    setBiometricError('');
+    if (!checked) {
+      // Turning off never needs to prove anything — just stop gating.
+      setBiometricEnabled(false);
+      setBiometricEnabledForUser(user.id, false);
+      return;
+    }
+    // Turning on: confirm it actually works on this device right now
+    // before flipping the preference, same as the post-sign-in enrollment
+    // prompt — otherwise a device that reports biometrics as available
+    // but then fails outright would start locking someone out on the
+    // very next open.
+    setBiometricBusy(true);
+    const result = await authenticateWithBiometrics('Confirm to enable Face ID / Touch ID unlock');
+    setBiometricBusy(false);
+    if (result.ok) {
+      setBiometricEnabled(true);
+      setBiometricEnabledForUser(user.id, true);
+    } else if (result.code !== 'userCancel') {
+      setBiometricError("Couldn't confirm biometric unlock on this device.");
     }
   };
 
@@ -292,6 +340,26 @@ export default function Account() {
           Send me weekly progress emails
         </label>
       </section>
+
+      {biometricAvailable && (
+        <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 10 }}>App unlock</h3>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={biometricEnabled}
+              onChange={handleBiometricToggle}
+              disabled={biometricBusy}
+            />
+            Unlock with Face ID / Touch ID instead of your password
+          </label>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+            This only gates opening the app on this device — it doesn't replace your account's
+            password or change who can sign in.
+          </p>
+          {biometricError && <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{biometricError}</p>}
+        </section>
+      )}
 
       <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
         <h3 style={{ fontSize: 16, marginBottom: 10, color: 'var(--danger)' }}>Delete account</h3>
