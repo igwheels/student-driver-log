@@ -151,7 +151,13 @@ export default function App() {
       </Routes>
 
       <div className="app-footer">
-        <span>© {COPYRIGHT_YEARS} DevWorks LLC. All rights reserved.</span>
+        <span>
+          © {COPYRIGHT_YEARS}{' '}
+          <a href="https://www.devworksllc.com" target="_blank" rel="noopener noreferrer">
+            DevWorks LLC
+          </a>
+          . All rights reserved.
+        </span>
         <div className="footer-links">
           <button onClick={() => navigate('/terms')}>Terms of Use</button>
           <button onClick={() => navigate('/privacy')}>Privacy Policy</button>
