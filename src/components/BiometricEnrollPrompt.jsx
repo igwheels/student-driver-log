@@ -17,8 +17,14 @@ import {
  * reports biometrics as available but then fails outright (a plugin/OS
  * quirk) doesn't get silently marked "enabled" and start locking someone
  * out on the very next open.
+ *
+ * `label` is the human-readable name for THIS device's actual mechanism
+ * ("Face ID", "Touch ID", "your fingerprint", ...) — resolved once by
+ * AppContext from checkBiometryAvailability() and passed down, so this
+ * never hardcodes "Face ID" and shows wrong copy on a Touch ID iPhone or
+ * an Android fingerprint device.
  */
-export default function BiometricEnrollPrompt({ uid, onDone }) {
+export default function BiometricEnrollPrompt({ uid, label, onDone }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,7 +37,11 @@ export default function BiometricEnrollPrompt({ uid, onDone }) {
   const handleEnable = async () => {
     setBusy(true);
     setError('');
-    const result = await authenticateWithBiometrics('Confirm to enable Face ID / Touch ID unlock');
+    // Generic on purpose — this text only surfaces inside the OS's own
+    // system prompt (a one-line caption under the Face ID/fingerprint
+    // icon), not the app's UI, so it doesn't need label to read
+    // naturally the way the app's own copy below does.
+    const result = await authenticateWithBiometrics('Confirm to enable biometric unlock for Student Driver Log');
     setBusy(false);
     if (result.ok) {
       finish(true);
@@ -50,7 +60,7 @@ export default function BiometricEnrollPrompt({ uid, onDone }) {
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : handleNotNow}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-text">Unlock with Face ID or Touch ID next time, instead of typing your password?</div>
+        <div className="modal-text">Unlock with {label} next time, instead of typing your password?</div>
         {error && <p style={{ color: '#D8503F', fontSize: 13, marginTop: 12 }}>{error}</p>}
         <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
           <button className="btn btn-outline" style={{ flex: 1 }} onClick={handleNotNow} disabled={busy}>

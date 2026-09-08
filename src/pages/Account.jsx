@@ -127,13 +127,18 @@ export default function Account() {
   // returning isAvailable:false on web, so this naturally never shows
   // there without needing its own platform check first.
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  // The human-readable name for THIS device's actual mechanism ("Face
+  // ID", "Touch ID", "your fingerprint", ...) — never hardcode a
+  // specific one, an iPhone SE or an Android device doesn't have Face ID.
+  const [biometricLabel, setBiometricLabel] = useState('biometrics');
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricError, setBiometricError] = useState('');
   useEffect(() => {
     if (!user?.id) return;
-    checkBiometryAvailability().then(({ isAvailable }) => {
+    checkBiometryAvailability().then(({ isAvailable, label }) => {
       setBiometricAvailable(isAvailable);
+      setBiometricLabel(label);
       if (isAvailable) setBiometricEnabled(isBiometricEnabledForUser(user.id));
     });
   }, [user?.id]);
@@ -153,7 +158,9 @@ export default function Account() {
     // but then fails outright would start locking someone out on the
     // very next open.
     setBiometricBusy(true);
-    const result = await authenticateWithBiometrics('Confirm to enable Face ID / Touch ID unlock');
+    // Generic, like the enrollment prompt's equivalent call — this text
+    // only surfaces inside the OS's own system dialog, not this page.
+    const result = await authenticateWithBiometrics('Confirm to enable biometric unlock for Student Driver Log');
     setBiometricBusy(false);
     if (result.ok) {
       setBiometricEnabled(true);
@@ -351,7 +358,7 @@ export default function Account() {
               onChange={handleBiometricToggle}
               disabled={biometricBusy}
             />
-            Unlock with Face ID / Touch ID instead of your password
+            Unlock with {biometricLabel} instead of your password
           </label>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
             This only gates opening the app on this device — it doesn't replace your account's

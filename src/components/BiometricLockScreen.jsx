@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import { authenticateWithBiometrics } from '../utils/biometricAuth';
+import { authenticateWithBiometrics, checkBiometryAvailability } from '../utils/biometricAuth';
 
 /**
  * Full-screen overlay shown when AppContext decides the app should be
@@ -26,6 +26,15 @@ import { authenticateWithBiometrics } from '../utils/biometricAuth';
 export default function BiometricLockScreen({ onUnlock }) {
   const [status, setStatus] = useState('prompting'); // 'prompting' | 'failed'
   const [failureMessage, setFailureMessage] = useState('');
+  // Fetched fresh on mount rather than threaded down from AppContext: the
+  // enable-time label could be stale by the time a later lock happens
+  // (unlikely to actually change, but this is cheap and always current).
+  // Starts generic so there's never a flash of a wrong specific name.
+  const [label, setLabel] = useState('biometrics');
+
+  useEffect(() => {
+    checkBiometryAvailability().then((result) => setLabel(result.label));
+  }, []);
 
   const attempt = async () => {
     setStatus('prompting');
@@ -70,7 +79,7 @@ export default function BiometricLockScreen({ onUnlock }) {
       <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Student Driver Log" className="login-logo" />
       <h1 className="login-title">Student Driver Log</h1>
       <p style={{ color: 'var(--muted)', textAlign: 'center', maxWidth: 320, marginTop: -16, marginBottom: 24 }}>
-        {status === 'prompting' ? 'Unlock with Face ID or Touch ID to continue.' : 'Locked'}
+        {status === 'prompting' ? `Unlock with ${label} to continue.` : 'Locked'}
       </p>
       {failureMessage && (
         <p style={{ color: '#F2A63C', fontSize: 13, textAlign: 'center', maxWidth: 320, marginBottom: 16 }}>

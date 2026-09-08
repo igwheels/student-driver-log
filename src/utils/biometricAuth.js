@@ -55,21 +55,52 @@ export const setBiometricEnabledForUser = (uid, enabled) => uid && writeFlag(ena
 export const hasAskedBiometricEnrollment = (uid) => (uid ? readFlag(askedKey(uid)) : true);
 export const markBiometricEnrollmentAsked = (uid) => uid && writeFlag(askedKey(uid), true);
 
-// { isAvailable, biometryType, ... } on native with hardware+enrollment
-// present; a harmless "not available" shape everywhere else (web, native
-// without biometrics) so callers never need their own platform branch.
+// Every user-visible string in this feature (the enable prompt, the
+// Account.jsx toggle, the lock screen, the reason shown inside the OS
+// prompt itself) has to name the right mechanism — "Enable Face ID" is
+// simply wrong on a Touch ID iPhone SE or an Android fingerprint device.
+// Mirrors @aparajita/capacitor-biometric-auth's BiometryType enum ordinals
+// (none=0, touchId=1, faceId=2, fingerprintAuthentication=3,
+// faceAuthentication=4, irisAuthentication=5) as plain numbers rather than
+// importing the enum — importing anything from the plugin package outside
+// the dynamic import() calls below would risk pulling plugin code into the
+// eager web bundle, undoing DEV-29's gating for no real benefit, since
+// these ordinals are stable API surface, not implementation detail.
+// Deliberately plain noun phrases, not "X unlock" — every caller's own
+// sentence supplies the word "unlock" ("Unlock with {label}", "Use
+// {label} to unlock…"), and a label that already contains it reads as a
+// stutter ("Unlock with fingerprint unlock").
+function labelForBiometryType(biometryType) {
+  switch (biometryType) {
+    case 1: return 'Touch ID';
+    case 2: return 'Face ID';
+    case 3: return 'your fingerprint';
+    case 4: return 'face recognition';
+    case 5: return 'iris recognition';
+    default: return 'biometrics';
+  }
+}
+
+// { isAvailable, biometryType, label, ... } on native with hardware+
+// enrollment present — label is this module's own addition (the plugin's
+// result doesn't include one), the human-readable name every caller
+// should use in place of a hardcoded "Face ID". A harmless "not
+// available" shape (label included, generic) everywhere else (web,
+// native without biometrics) so callers never need their own platform
+// branch or their own copy of this mapping.
 export async function checkBiometryAvailability() {
   if (!Capacitor.isNativePlatform()) {
-    return { isAvailable: false, biometryType: 0, code: 'not-native' };
+    return { isAvailable: false, biometryType: 0, label: 'biometrics', code: 'not-native' };
   }
   try {
     const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
-    return await BiometricAuth.checkBiometry();
+    const result = await BiometricAuth.checkBiometry();
+    return { ...result, label: labelForBiometryType(result.biometryType) };
   } catch (e) {
     // Plugin threw outright (shouldn't happen per its own API, but this is
     // exactly the kind of failure that must fall back quietly, not crash
     // the app) — report as unavailable rather than letting it propagate.
-    return { isAvailable: false, biometryType: 0, code: 'error', message: e?.message };
+    return { isAvailable: false, biometryType: 0, label: 'biometrics', code: 'error', message: e?.message };
   }
 }
 

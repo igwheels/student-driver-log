@@ -49,7 +49,7 @@ export default function App() {
   const {
     logout, students, getTotals, user,
     biometricLocked, dismissBiometricLock,
-    showBiometricEnrollPrompt, dismissBiometricEnrollPrompt,
+    biometricEnrollLabel, dismissBiometricEnrollPrompt,
   } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const isLogin = location.pathname === '/';
@@ -174,8 +174,8 @@ export default function App() {
           current so neither one tears down in-progress state (a running
           drive timer, an open form) underneath it. See DEV-28. */}
       {biometricLocked && <BiometricLockScreen onUnlock={dismissBiometricLock} />}
-      {showBiometricEnrollPrompt && user?.id && (
-        <BiometricEnrollPrompt uid={user.id} onDone={dismissBiometricEnrollPrompt} />
+      {biometricEnrollLabel && user?.id && (
+        <BiometricEnrollPrompt uid={user.id} label={biometricEnrollLabel} onDone={dismissBiometricEnrollPrompt} />
       )}
     </div>
   );

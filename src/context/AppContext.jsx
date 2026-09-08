@@ -48,10 +48,15 @@ export function AppProvider({ children }) {
   // session, not a second auth system — see src/utils/biometricAuth.js's
   // module comment for the full reasoning. biometricLocked gates
   // rendering (App.jsx shows BiometricLockScreen as an overlay, not a
-  // route, so nothing underneath unmounts); showBiometricEnrollPrompt
-  // gates the one-time "enable Face ID?" offer after a fresh sign-in.
+  // route, so nothing underneath unmounts). biometricEnrollLabel gates
+  // the one-time "enable Face ID?" offer after a fresh sign-in — null
+  // means don't show it; a string ("Face ID", "Touch ID", "fingerprint
+  // unlock", ...) means show it, naming the actual mechanism this device
+  // has. Carrying the resolved label here (not just a boolean) means
+  // BiometricEnrollPrompt never needs its own redundant checkBiometry()
+  // call — the one below, at the moment this is decided, is enough.
   const [biometricLocked, setBiometricLocked] = useState(false);
-  const [showBiometricEnrollPrompt, setShowBiometricEnrollPrompt] = useState(false);
+  const [biometricEnrollLabel, setBiometricEnrollLabel] = useState(null);
   // True only for the very first onAuthStateChanged callback of this app
   // load — the one that reports whatever session Firebase already had
   // persisted, as opposed to one from an interactive sign-in just now.
@@ -105,8 +110,8 @@ export function AppProvider({ children }) {
               setBiometricLocked(true);
             }
           } else if (!hasAskedBiometricEnrollment(firebaseUser.uid) && !isBiometricEnabledForUser(firebaseUser.uid)) {
-            checkBiometryAvailability().then(({ isAvailable }) => {
-              if (isAvailable) setShowBiometricEnrollPrompt(true);
+            checkBiometryAvailability().then(({ isAvailable, label }) => {
+              if (isAvailable) setBiometricEnrollLabel(label);
             });
           }
         }
@@ -124,7 +129,7 @@ export function AppProvider({ children }) {
         // its signOut(auth) call lands here, which is what actually clears
         // biometricLocked (not the button itself).
         setBiometricLocked(false);
-        setShowBiometricEnrollPrompt(false);
+        setBiometricEnrollLabel(null);
         try {
           localStorage.removeItem(STORAGE_KEY);
           localStorage.removeItem(SESSION_TOKEN_KEY);
@@ -780,8 +785,8 @@ export function AppProvider({ children }) {
         restorePurchases: restorePurchasesCall,
         biometricLocked,
         dismissBiometricLock: () => setBiometricLocked(false),
-        showBiometricEnrollPrompt,
-        dismissBiometricEnrollPrompt: () => setShowBiometricEnrollPrompt(false),
+        biometricEnrollLabel,
+        dismissBiometricEnrollPrompt: () => setBiometricEnrollLabel(null),
       }}
     >
       {children}
