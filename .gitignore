@@ -4,6 +4,9 @@ dist
 .env.local
 .DS_Store
 
+# Android Studio / IntelliJ project state — machine-local, not shared config.
+android/.idea/
+
 # Firebase CLI local cache + logs (firebase.json / .firebaserc are committed;
 # these are machine-local and must not be). `firebase login` credentials live
 # in ~/.config/configstore/firebase-tools.json, never in the repo.
