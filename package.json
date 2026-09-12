@@ -6,15 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "icons": "node scripts/make-app-icon.mjs && capacitor-assets generate --ios --android && cap sync"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor-firebase/authentication": "^8.5.1",
     "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.0",
     "@capacitor/filesystem": "^8.1.3",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/preferences": "^8.0.1",
     "@capacitor/share": "^8.0.1",
     "@napi-rs/canvas": "^1.0.7",
     "firebase": "^11.0.0",
@@ -29,8 +32,10 @@
     "resend": "^6.24.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "sharp": "^0.35.4",
     "vite": "^8.2.1",
     "vite-plugin-pwa": "^1.3.0"
   }

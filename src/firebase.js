@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, initializeAuth, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { CapacitorPreferencesPersistence } from './utils/capacitorAuthPersistence';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCkf0lYqIF-GK3Eg3WT0vyLe_si1VYyM4M',
@@ -18,20 +19,34 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// getAuth()'s default persistence auto-detection probes IndexedDB first,
-// which hangs indefinitely inside a Capacitor WKWebView (loaded from the
-// non-standard capacitor://localhost origin) — the sign-in call itself
-// succeeds, but onAuthStateChanged then never fires, so AppContext's
-// authChecked flag never flips true and every RequireAuth-gated route stays
-// blank forever. Forcing a single persistence type (browserLocalPersistence)
-// skips that IndexedDB probe entirely, which is what native needs — but
-// forcing it broke Safari, where initializeAuth() throws auth/argument-error
-// if localStorage is restricted (private browsing, some PWA/ITP storage
-// states), a case getAuth()'s normal fallback chain (IndexedDB → localStorage
-// → sessionStorage → in-memory) handles gracefully. So this only applies to
-// native, where the fallback chain is what hangs in the first place.
+// Persistence is the whole reason auth is wired by hand on native.
+//
+// getAuth()'s auto-detection probes IndexedDB first, which hangs inside
+// the Capacitor WKWebView (non-standard capacitor://localhost origin) —
+// onAuthStateChanged then never fires and every RequireAuth route stays
+// blank. browserLocalPersistence avoids that hang but has its own, subtler
+// failure here: Firebase confirms localStorage works by waiting for a
+// `storage` event, which only fires cross-context, so in a single web view
+// the check times out and Firebase silently falls back to in-memory — the
+// session is written to localStorage but never restored, so a full quit +
+// relaunch signs the user out every time (see DEV-8 phase 4 debugging).
+//
+// So on native, persist through @capacitor/preferences (native
+// UserDefaults / SharedPreferences) — no `storage` event, no IndexedDB, and
+// it outlives app updates. browserLocalPersistence / indexedDBLocalPersistence
+// stay in the list as ordered fallbacks and as migration sources, so a
+// session already stored by the old config is carried over on first launch
+// rather than dropped. Web keeps getAuth()'s normal fallback chain, which
+// degrades gracefully when localStorage is restricted (Safari private mode).
+// Preferences first; browserLocalPersistence second, only as a migration
+// source for a session written by the previous config. indexedDBLocal
+// persistence is deliberately NOT in the list — if Preferences ever failed
+// its check, falling through to IndexedDB is the hang this whole dance
+// exists to avoid.
 export const auth = Capacitor.isNativePlatform()
-  ? initializeAuth(app, { persistence: browserLocalPersistence })
+  ? initializeAuth(app, {
+      persistence: [CapacitorPreferencesPersistence, browserLocalPersistence],
+    })
   : getAuth(app);
 export const db = getFirestore(app);
 // Default region (us-central1) matches functions/src/*.js's explicit

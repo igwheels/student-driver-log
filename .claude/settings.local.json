@@ -4,7 +4,8 @@
       "Bash(npm install *)",
       "Bash(npm audit *)",
       "Bash(npm run *)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__linear__save_issue"
     ]
   }
 }

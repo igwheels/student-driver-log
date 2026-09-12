@@ -36,13 +36,21 @@ export default function BiometricLockScreen({ onUnlock }) {
     checkBiometryAvailability().then((result) => setLabel(result.label));
   }, []);
 
-  const attempt = async () => {
+  const attempt = async (retriesLeft = 3) => {
     setStatus('prompting');
     setFailureMessage('');
     const result = await authenticateWithBiometrics('Unlock Student Driver Log');
     if (result.ok) {
       onUnlock();
       return;
+    }
+    // systemCancel = iOS tore the prompt down itself, almost always
+    // because it was presented before the scene finished activating on a
+    // cold start — not a real auth failure. Wait a beat and try again
+    // rather than dropping to the alarming failed state.
+    if (result.code === 'systemCancel' && retriesLeft > 0) {
+      await new Promise((r) => setTimeout(r, 500));
+      return attempt(retriesLeft - 1);
     }
     // userCancel: they deliberately dismissed the system prompt — don't
     // put an alarming error message in front of someone who just tapped
@@ -55,10 +63,16 @@ export default function BiometricLockScreen({ onUnlock }) {
     setStatus('failed');
   };
 
-  // Auto-prompt once on mount so unlocking is a single Face ID glance in
-  // the common case, not an extra tap first.
+  // Auto-prompt shortly after mount. A small delay lets the overlay paint
+  // and the scene finish activating on a cold start, which avoids the
+  // immediate systemCancel that firing on the same tick as mount can
+  // trigger; attempt()'s own systemCancel retry covers whatever slips
+  // through.
   useEffect(() => {
-    attempt();
+    const id = setTimeout(() => attempt(), 300);
+    return () => {
+      clearTimeout(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -87,7 +101,7 @@ export default function BiometricLockScreen({ onUnlock }) {
         </p>
       )}
       <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button className="btn btn-primary" onClick={attempt} disabled={status === 'prompting'}>
+        <button className="btn btn-primary" onClick={() => attempt()} disabled={status === 'prompting'}>
           {status === 'prompting' ? 'Waiting…' : 'Try Again'}
         </button>
         <button type="button" className="bio-link" onClick={handleFallback}>

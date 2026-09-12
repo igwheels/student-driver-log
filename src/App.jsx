@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useApp } from './context/AppContext';
 import Login from './pages/Login';
@@ -52,6 +52,7 @@ export default function App() {
     biometricEnrollLabel, dismissBiometricEnrollPrompt,
   } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
+
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
   const isSnapshot = location.pathname.startsWith('/snapshot');
