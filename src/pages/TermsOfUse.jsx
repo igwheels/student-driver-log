@@ -15,7 +15,11 @@ export default function TermsOfUse() {
 
       <p>
         These Terms of Use ("Terms") govern your use of Student Driver Log (the "Service"), operated
-        by DevWorks LLC ("we," "us," or "our"). By creating an account or using the Service, you
+        by{' '}
+        <a href="https://www.devworksllc.com" target="_blank" rel="noopener noreferrer">
+          DevWorks LLC
+        </a>{' '}
+        ("we," "us," or "our"). By creating an account or using the Service, you
         agree to these Terms. If you do not agree, do not use the Service.
       </p>
 
@@ -130,7 +134,11 @@ export default function TermsOfUse() {
 
       <h3>12. Limitation of liability</h3>
       <p>
-        To the fullest extent permitted by law, DevWorks LLC will not be liable for any indirect,
+        To the fullest extent permitted by law,{' '}
+        <a href="https://www.devworksllc.com" target="_blank" rel="noopener noreferrer">
+          DevWorks LLC
+        </a>{' '}
+        will not be liable for any indirect,
         incidental, consequential, or special damages, or for any loss of data, arising out of or
         relating to your use of the Service — including any rejection of a driving log by a licensing
         agency, any loss of recorded hours, or any consequence of relying on state requirement
@@ -152,8 +160,11 @@ export default function TermsOfUse() {
 
       <h3>15. Contact</h3>
       <p>
-        Questions about these Terms may be directed to DevWorks LLC at{' '}
-        <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a>.
+        Questions about these Terms may be directed to{' '}
+        <a href="https://www.devworksllc.com" target="_blank" rel="noopener noreferrer">
+          DevWorks LLC
+        </a>{' '}
+        at <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a>.
       </p>
     </div>
   );

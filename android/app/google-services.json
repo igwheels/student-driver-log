@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "829898988631",
+    "project_id": "student-driver-log-b1924",
+    "storage_bucket": "student-driver-log-b1924.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:829898988631:android:e116d0416bf476f3eb9712",
+        "android_client_info": {
+          "package_name": "com.devworksllc.sdl"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "829898988631-9j3d9dq4787odnnsej057od1oaa87c0u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtuj2EX_12Wkq9YwUIN360N0RXeZ7kjD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "829898988631-9j3d9dq4787odnnsej057od1oaa87c0u.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "829898988631-11b1f4r6p7q73op0r6059n52nhmts9d7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.devworksllc.sdl"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

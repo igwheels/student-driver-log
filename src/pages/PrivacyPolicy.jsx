@@ -14,7 +14,11 @@ export default function PrivacyPolicy() {
       <p className="legal-updated">Last updated: September 2026</p>
 
       <p>
-        This Privacy Policy explains how DevWorks LLC ("we," "us," or "our") collects, uses, and
+        This Privacy Policy explains how{' '}
+        <a href="https://www.devworksllc.com" target="_blank" rel="noopener noreferrer">
+          DevWorks LLC
+        </a>{' '}
+        ("we," "us," or "our") collects, uses, and
         protects information in Student Driver Log (the "Service"). Because this Service is used to
         record information about student drivers — who are often minors — we have tried to keep what
         we collect to the minimum needed to make it work.
@@ -231,7 +235,11 @@ export default function PrivacyPolicy() {
       <h3>13. Contact</h3>
       <p>
         Questions about this Privacy Policy, or requests regarding a student driver's information,
-        may be directed to DevWorks LLC at <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a>.
+        may be directed to{' '}
+        <a href="https://www.devworksllc.com" target="_blank" rel="noopener noreferrer">
+          DevWorks LLC
+        </a>{' '}
+        at <a href="mailto:ian@devworksllc.com">ian@devworksllc.com</a>.
       </p>
     </div>
   );

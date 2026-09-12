@@ -22,6 +22,12 @@ import {
   hapticsAvailable,
   pulseSafetyAlert,
 } from '../utils/haptics';
+import {
+  checkBiometryAvailability,
+  isBiometricEnabledForUser,
+  setBiometricEnabledForUser,
+  authenticateWithBiometrics,
+} from '../utils/biometricAuth';
 
 const DELETE_PHRASE = 'Delete this account and all its dashboards forever.';
 
@@ -128,6 +134,55 @@ export default function Account() {
     setSafetyHapticsEnabled(on);
     // Buzz once on enable so it's clear what was just turned on.
     if (on) pulseSafetyAlert();
+  };
+
+  // DEV-28: only shown at all if this device actually has biometrics
+  // available — a toggle for a feature the hardware can't do isn't a real
+  // choice, it's just clutter. checkBiometryAvailability() is a no-op
+  // returning isAvailable:false on web, so this naturally never shows
+  // there without needing its own platform check first.
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  // The human-readable name for THIS device's actual mechanism ("Face
+  // ID", "Touch ID", "your fingerprint", ...) — never hardcode a
+  // specific one, an iPhone SE or an Android device doesn't have Face ID.
+  const [biometricLabel, setBiometricLabel] = useState('biometrics');
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricError, setBiometricError] = useState('');
+  useEffect(() => {
+    if (!user?.id) return;
+    checkBiometryAvailability().then(({ isAvailable, label }) => {
+      setBiometricAvailable(isAvailable);
+      setBiometricLabel(label);
+      if (isAvailable) setBiometricEnabled(isBiometricEnabledForUser(user.id));
+    });
+  }, [user?.id]);
+
+  const handleBiometricToggle = async (e) => {
+    const checked = e.target.checked;
+    setBiometricError('');
+    if (!checked) {
+      // Turning off never needs to prove anything — just stop gating.
+      setBiometricEnabled(false);
+      setBiometricEnabledForUser(user.id, false);
+      return;
+    }
+    // Turning on: confirm it actually works on this device right now
+    // before flipping the preference, same as the post-sign-in enrollment
+    // prompt — otherwise a device that reports biometrics as available
+    // but then fails outright would start locking someone out on the
+    // very next open.
+    setBiometricBusy(true);
+    // Generic, like the enrollment prompt's equivalent call — this text
+    // only surfaces inside the OS's own system dialog, not this page.
+    const result = await authenticateWithBiometrics('Confirm to enable biometric unlock for Student Driver Log');
+    setBiometricBusy(false);
+    if (result.ok) {
+      setBiometricEnabled(true);
+      setBiometricEnabledForUser(user.id, true);
+    } else if (result.code !== 'userCancel') {
+      setBiometricError("Couldn't confirm biometric unlock on this device.");
+    }
   };
 
   const [deleteInput, setDeleteInput] = useState('');
@@ -327,6 +382,26 @@ export default function Account() {
           >
             Test vibration
           </button>
+        </section>
+      )}
+
+      {biometricAvailable && (
+        <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 10 }}>App unlock</h3>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={biometricEnabled}
+              onChange={handleBiometricToggle}
+              disabled={biometricBusy}
+            />
+            Unlock with {biometricLabel} instead of your password
+          </label>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+            This only gates opening the app on this device — it doesn't replace your account's
+            password or change who can sign in.
+          </p>
+          {biometricError && <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{biometricError}</p>}
         </section>
       )}
 

@@ -1,124 +1,96 @@
-// Derives the app-icon source art from public/logo.png:
-//   - assets/icon.png            1024² full-bleed (navy tile + mark, no text)
-//   - assets/icon-foreground.png 1024² mark on transparent (Android adaptive)
-//   - assets/icon-background.png 1024² navy gradient
-//   - public/pwa-512.png / pwa-192.png / pwa-maskable-512.png
-//
-// Then run:  npx @capacitor/assets generate --ios --android
-// to slice assets/icon*.png into every native icon size.
-//
-// public/logo.png itself is left alone — it's the brand mark on white, used
-// in-app (Login, topbar) and as the web favicon.
+/**
+ * Generate the native app-icon source images from public/logo.png.
+ *
+ * public/logo.png is the brand logo: the navy rounded-square artwork
+ * (white car + checklist + "Student Driver Log") sitting on a white
+ * margin, with its own baked-in rounded corners. A native app icon has to
+ * be a full-bleed opaque square — iOS and Android apply their own corner
+ * mask — so this script trims the white margin, squares the art, cuts the
+ * baked corners back to transparent, and composites it onto a solid brand
+ * navy field. The corner-cut radius is ~iOS's own squircle, so the flat
+ * navy that shows through at the corners is exactly the region the OS
+ * clips anyway.
+ *
+ * Outputs (consumed by `npx capacitor-assets generate`):
+ *   resources/icon.png            1024²  opaque, full-bleed  (iOS + legacy Android)
+ *   resources/icon-background.png 1024²  solid brand navy    (Android adaptive)
+ *   resources/icon-foreground.png 1024²  art in the safe zone, transparent
+ *   resources/splash.png          2732²  logo on brand navy  (launch screen)
+ *   resources/splash-dark.png     2732²  identical — the brand field is
+ *                                        already dark, so there is no
+ *                                        separate light treatment to make
+ *                                        (and no white launch flash).
+ *
+ * Run via `npm run icons` (which also runs capacitor-assets + cap sync).
+ */
+import sharp from 'sharp';
+import { mkdir } from 'node:fs/promises';
 
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { loadImage, createCanvas } from '@napi-rs/canvas';
+const SRC = 'public/logo.png';
+const OUT = 'resources';
+const SIZE = 1024;
+// Brand navy — matches --navy in src/styles/theme.css and the manifest
+// theme_color. The logo's own field is a near-black navy gradient; this
+// sits behind the trimmed corners, under the OS mask.
+const NAVY = '#141C2E';
+const CORNER_RADIUS = Math.round(SIZE * 0.235);
 
-// Measured from public/logo.png (1254²): the car + checklist mark, cropped
-// well inside the dark tile's rounded corners (so no corner arc or white
-// page background bleeds in) and above the "STUDENT DRIVER LOG" text. The
-// car's mirror tips lose a few px at the sides — an acceptable trade for a
-// clean field.
-const MARK = { sx: 178, sy: 252, sw: 896, sh: 636 };
-// The tile's vertical navy gradient, sampled top → bottom.
-const NAVY_TOP = '#1E2C40';
-const NAVY_BOTTOM = '#0C1827';
+const cornerMask = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}">` +
+    `<rect width="${SIZE}" height="${SIZE}" rx="${CORNER_RADIUS}" ry="${CORNER_RADIUS}" fill="#fff"/>` +
+    `</svg>`,
+);
 
-const logo = await loadImage('public/logo.png');
+// Trim the white margin, square it off (cover-crops a few px of the
+// rounded-corner zone top/bottom), then knock the baked corners out to
+// transparent.
+const art = await sharp(SRC)
+  .trim({ background: '#ffffff', threshold: 40 })
+  .resize(SIZE, SIZE, { fit: 'cover', position: 'center' })
+  .ensureAlpha()
+  .composite([{ input: cornerMask, blend: 'dest-in' }])
+  .png()
+  .toBuffer();
 
-function navyGradient(ctx, size) {
-  const g = ctx.createLinearGradient(0, 0, 0, size);
-  g.addColorStop(0, NAVY_TOP);
-  g.addColorStop(1, NAVY_BOTTOM);
-  return g;
-}
+await mkdir(OUT, { recursive: true });
 
-// Drop the tile's navy so only the white car + coloured marks remain. The
-// mark's darkest kept ink (grey binding rings ~#A0A0A0, blue page curl) sits
-// well above the navy (max channel < ~95), so a ramp on the max channel
-// isolates it cleanly and feathers the antialiased edges.
-function keyOutNavy(ctx, size) {
-  const img = ctx.getImageData(0, 0, size, size);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const maxC = Math.max(d[i], d[i + 1], d[i + 2]);
-    const a = (maxC - 95) / 45; // <95 → 0, >140 → 1
-    d[i + 3] = a <= 0 ? 0 : a >= 1 ? 255 : Math.round(a * 255);
-  }
-  ctx.putImageData(img, 0, 0);
-}
+// iOS + legacy Android launcher: opaque, art to the edges, navy corners.
+// iOS rejects an icon with an alpha channel, so flatten AND drop alpha.
+await sharp({ create: { width: SIZE, height: SIZE, channels: 4, background: NAVY } })
+  .composite([{ input: art }])
+  .flatten({ background: NAVY })
+  .removeAlpha()
+  .png()
+  .toFile(`${OUT}/icon.png`);
 
-// markWidthFrac: mark width as a fraction of the canvas. dyFrac: vertical
-// nudge (fraction of canvas). bg: 'gradient' | 'none'. keyOut: drop the navy
-// so the mark is isolated on transparency (for the adaptive foreground).
-function compose(size, { bg, markWidthFrac, dyFrac = 0, keyOut = false }) {
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  const dw = size * markWidthFrac;
-  const dh = dw * (MARK.sh / MARK.sw);
-  const dx = (size - dw) / 2;
-  const dy = (size - dh) / 2 + size * dyFrac;
-  ctx.drawImage(logo, MARK.sx, MARK.sy, MARK.sw, MARK.sh, dx, dy, dw, dh);
-  if (keyOut) keyOutNavy(ctx, size);
+// Android adaptive background layer.
+await sharp({ create: { width: SIZE, height: SIZE, channels: 3, background: NAVY } })
+  .png()
+  .toFile(`${OUT}/icon-background.png`);
 
-  if (bg === 'gradient') {
-    // paint the gradient behind what's already drawn
-    ctx.globalCompositeOperation = 'destination-over';
-    ctx.fillStyle = navyGradient(ctx, size);
-    ctx.fillRect(0, 0, size, size);
-    ctx.globalCompositeOperation = 'source-over';
-  }
-  return canvas.toBuffer('image/png');
-}
+// Android adaptive foreground layer — the same full-bleed art (transparent
+// corners). capacitor-assets adds its own ~16.7% inset and the launcher
+// then applies a circle/squircle mask, which lands on the navy the
+// background layer supplies, so nothing important is clipped.
+await sharp(art).toFile(`${OUT}/icon-foreground.png`);
 
-mkdirSync('assets', { recursive: true });
+// Launch screen: the logo on the brand navy field. Same image for light
+// and dark — the brand is dark either way, which also avoids the white
+// flash capacitor-assets' auto-splash would otherwise show in light mode.
+const SPLASH = 2732;
+const splashLogo = await sharp(art)
+  .resize(Math.round(SPLASH * 0.30), Math.round(SPLASH * 0.30))
+  .toBuffer();
+const splash = await sharp({ create: { width: SPLASH, height: SPLASH, channels: 3, background: NAVY } })
+  .composite([{ input: splashLogo, gravity: 'center' }])
+  .png()
+  .toBuffer();
+await sharp(splash).toFile(`${OUT}/splash.png`);
+await sharp(splash).toFile(`${OUT}/splash-dark.png`);
 
-// Full-bleed icon — iOS + legacy Android + the PWA sizes. keyOut drops the
-// source tile's navy (and its soft edge shadow) so the mark sits on a fresh
-// gradient with no ghost rectangle.
-const FULL = { bg: 'gradient', markWidthFrac: 0.9, keyOut: true };
-writeFileSync('assets/icon.png', compose(1024, FULL));
-writeFileSync('public/pwa-512.png', compose(512, FULL));
-writeFileSync('public/pwa-192.png', compose(192, FULL));
-
-// Android adaptive foreground: isolated mark on transparency, inside the safe zone.
-writeFileSync('assets/icon-foreground.png', compose(1024, { bg: 'none', markWidthFrac: 0.64, keyOut: true }));
-
-// Android adaptive background: the navy gradient, full bleed.
-{
-  const c = createCanvas(1024, 1024);
-  const x = c.getContext('2d');
-  x.fillStyle = navyGradient(x, 1024);
-  x.fillRect(0, 0, 1024, 1024);
-  writeFileSync('assets/icon-background.png', c.toBuffer('image/png'));
-}
-
-// Maskable PWA icon: same art, mark shrunk into the maskable safe zone.
-writeFileSync('public/pwa-maskable-512.png', compose(512, { bg: 'gradient', markWidthFrac: 0.62, keyOut: true }));
-
-// Android status-bar notification icon (the "Recording your drive" foreground
-// service, DEV-71): a flat white silhouette of the mark on transparency —
-// Android tints it. Must be transparent-background or the notification
-// misbehaves (dismissable, taps open Settings).
-{
-  const src = createCanvas(1024, 1024);
-  const sx = src.getContext('2d');
-  sx.drawImage(logo, MARK.sx, MARK.sy, MARK.sw, MARK.sh, 512 - 460, 512 - 460 * (MARK.sh / MARK.sw), 920, 920 * (MARK.sh / MARK.sw));
-  keyOutNavy(sx, 1024);
-  const img = sx.getImageData(0, 0, 1024, 1024);
-  for (let i = 0; i < img.data.length; i += 4) {
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; // force white, keep alpha
-  }
-  sx.putImageData(img, 0, 0);
-  for (const [dir, px] of [['mdpi', 24], ['hdpi', 36], ['xhdpi', 48], ['xxhdpi', 72], ['xxxhdpi', 96]]) {
-    const out = createCanvas(px, px);
-    out.getContext('2d').drawImage(src, 0, 0, px, px);
-    const p = `android/app/src/main/res/drawable-${dir}`;
-    mkdirSync(p, { recursive: true });
-    writeFileSync(`${p}/ic_stat_drive.png`, out.toBuffer('image/png'));
-  }
-  console.log('wrote android/app/src/main/res/drawable-*/ic_stat_drive.png');
-}
-
-console.log('wrote assets/icon.png, assets/icon-foreground.png, assets/icon-background.png');
-console.log('wrote public/pwa-512.png, public/pwa-192.png, public/pwa-maskable-512.png');
-console.log('next: npx @capacitor/assets generate --ios --android');
+console.log(
+  'Wrote',
+  ['icon.png', 'icon-background.png', 'icon-foreground.png', 'splash.png', 'splash-dark.png']
+    .map((f) => `${OUT}/${f}`)
+    .join(', '),
+);
