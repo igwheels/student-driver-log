@@ -44,6 +44,7 @@ export function buildDrivesCsv({ student, logs }) {
     'Time of Day',
     'Drive Type',
     'Distance (miles)',
+    'Top Speed (mph)',
     'Skills Practiced',
   ];
 
@@ -61,6 +62,7 @@ export function buildDrivesCsv({ student, logs }) {
         log.timeOfDay === 'night' ? 'Night' : 'Day',
         DRIVE_TYPE_LABELS[log.type] ?? log.type ?? '',
         log.distanceMiles ?? '',
+        log.maxSpeedMph ?? '',
         formatSkills(log.skills),
       ]);
     });

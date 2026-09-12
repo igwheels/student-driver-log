@@ -17,6 +17,12 @@ import {
   deleteWeeklyEmailPreference,
 } from '../utils/emailPreferences';
 import {
+  safetyHapticsEnabled,
+  setSafetyHapticsEnabled,
+  hapticsAvailable,
+  pulseSafetyAlert,
+} from '../utils/haptics';
+import {
   checkBiometryAvailability,
   isBiometricEnabledForUser,
   setBiometricEnabledForUser,
@@ -119,6 +125,15 @@ export default function Account() {
       console.error('Failed to update email preference:', err);
       setWeeklyEmailOptIn(!checked);
     }
+  };
+
+  const [safetyHaptics, setSafetyHaptics] = useState(() => safetyHapticsEnabled());
+  const handleSafetyHapticsToggle = (e) => {
+    const on = e.target.checked;
+    setSafetyHaptics(on);
+    setSafetyHapticsEnabled(on);
+    // Buzz once on enable so it's clear what was just turned on.
+    if (on) pulseSafetyAlert();
   };
 
   // DEV-28: only shown at all if this device actually has biometrics
@@ -347,6 +362,28 @@ export default function Account() {
           Send me weekly progress emails
         </label>
       </section>
+
+      {hapticsAvailable() && (
+        <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 10 }}>Driving-safety alerts</h3>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+            <input type="checkbox" checked={safetyHaptics} onChange={handleSafetyHapticsToggle} />
+            Vibrate this phone on hard-brake and harsh-turn events during a drive
+          </label>
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: '10px 0 0' }}>
+            A short double buzz, so the supervising adult notices without looking at the screen.
+            Saved on this device only.
+          </p>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ marginTop: 12 }}
+            onClick={() => pulseSafetyAlert({ force: true })}
+          >
+            Test vibration
+          </button>
+        </section>
+      )}
 
       {biometricAvailable && (
         <section style={{ borderTop: '1px solid var(--line)', paddingTop: 24, marginBottom: 32 }}>

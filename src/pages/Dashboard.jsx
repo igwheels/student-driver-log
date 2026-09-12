@@ -8,6 +8,8 @@ import DriveMap from '../components/DriveMap';
 import { exportAffidavitPdf } from '../utils/pdfExport';
 import { exportDrivesCsv } from '../utils/csvExport';
 import { hasStateForm, stateFormLabel, exportFilledStateForm } from '../utils/stateFormFill';
+import { readActiveDrive, clearActiveDrive } from '../utils/activeDrive';
+import { savePendingDrive } from '../utils/pendingDrive';
 
 export default function Dashboard() {
   const { studentId } = useParams();
@@ -22,6 +24,46 @@ export default function Dashboard() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [pendingActionId, setPendingActionId] = useState(null);
   const [formStatus, setFormStatus] = useState('');
+
+  // A drive whose app was killed mid-timing left a checkpoint (see
+  // utils/activeDrive.js). Offer to resume it, save what was recorded, or
+  // discard it.
+  const [activeDrive, setActiveDrive] = useState(null);
+  useEffect(() => {
+    const cp = readActiveDrive();
+    setActiveDrive(cp && cp.studentId === studentId ? cp : null);
+  }, [studentId]);
+
+  const resumeActiveDrive = () => navigate(`/drive-timer/${studentId}?resume=1`);
+
+  const discardActiveDrive = () => {
+    clearActiveDrive();
+    setActiveDrive(null);
+  };
+
+  const saveActiveDrivePartial = () => {
+    const cp = activeDrive;
+    if (!cp) return;
+    const prefill = {
+      startTime: cp.startTime,
+      // The last checkpoint is the closest we have to when tracking stopped.
+      endTime: new Date(cp.savedAt).toISOString(),
+      startOffsetMinutes: cp.startOffsetMinutes,
+      distanceMiles: cp.miles > 0 ? Number(cp.miles.toFixed(1)) : null,
+      maxSpeedMph: cp.maxSpeedMph != null ? Math.round(cp.maxSpeedMph) : null,
+      safetyEventCounts:
+        cp.safetyEventCounts && (cp.safetyEventCounts.hardBrake || cp.safetyEventCounts.harshTurn)
+          ? cp.safetyEventCounts
+          : null,
+      startLocation: cp.start ?? null,
+      endLocation: cp.end ?? null,
+      route: cp.route && cp.route.length > 1 ? cp.route : null,
+    };
+    savePendingDrive(studentId, prefill);
+    clearActiveDrive();
+    setActiveDrive(null);
+    navigate(`/log-drive/${studentId}?pending=1`, { state: { prefill } });
+  };
 
   // Update shared users when student changes
   useEffect(() => {
@@ -163,6 +205,43 @@ export default function Dashboard() {
         <div className="no-req-card">
           Your state of residence does not require a minimum number of supervised driving hours.
           Way to go above and beyond!
+        </div>
+      )}
+
+      {activeDrive && (
+        <div
+          style={{
+            marginTop: 24,
+            padding: '14px 16px',
+            backgroundColor: '#FFF7E6',
+            border: '1px solid var(--line)',
+            borderRadius: 8,
+          }}
+        >
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+            Unfinished drive from{' '}
+            {new Date(activeDrive.startTime).toLocaleString([], {
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 12px' }}>
+            {activeDrive.miles > 0 ? `${activeDrive.miles.toFixed(1)} mi recorded before ` : 'Recorded before '}
+            the app closed. Pick up where it left off, save what was recorded, or discard it.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button className="btn btn-primary" style={{ flex: '1 1 auto' }} onClick={resumeActiveDrive}>
+              Resume timing
+            </button>
+            <button className="btn btn-dark" style={{ flex: '1 1 auto' }} onClick={saveActiveDrivePartial}>
+              Save what we recorded
+            </button>
+            <button className="btn btn-outline" style={{ flex: '1 1 auto' }} onClick={discardActiveDrive}>
+              Discard
+            </button>
+          </div>
         </div>
       )}
 
@@ -310,7 +389,7 @@ export default function Dashboard() {
                 <div className="ledger-row-main">
                   <div>
                     <div className="date">{l.date}</div>
-                    <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}</div>
+                    <div className="meta">{l.type} · {l.timeOfDay}{l.distanceMiles != null ? ` · ${l.distanceMiles} mi` : ''}{l.maxSpeedMph != null ? ` · top ${l.maxSpeedMph} mph` : ''}</div>
                   </div>
                   <div className="duration mono">{fmtDuration(l.durationMinutes)}</div>
                 </div>

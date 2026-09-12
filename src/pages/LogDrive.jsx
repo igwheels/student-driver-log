@@ -89,6 +89,14 @@ export default function LogDrive() {
       ? String(prefill.distanceMiles)
       : ''
   );
+  // GPS top speed for the drive, recorded by the timer — a measurement, not
+  // an entry, so it's shown read-only and never asked for on a hand-logged
+  // drive. Absent when the drive was logged by hand or its timer results were
+  // lost in transit (see lostPrefill).
+  const maxSpeedMph = existingLog?.maxSpeedMph ?? prefill?.maxSpeedMph ?? null;
+  // Hard-brake / harsh-turn tallies from the timer's motion detection. Only
+  // present when that detection was switched on (off by default) and it fired.
+  const safetyEventCounts = existingLog?.safetyEventCounts ?? prefill?.safetyEventCounts ?? null;
   const [skills, setSkills] = useState(existingLog?.skills ?? []);
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -159,6 +167,8 @@ export default function LogDrive() {
     } else {
       addLog(studentId, {
         ...fields,
+        maxSpeedMph: prefill?.maxSpeedMph ?? null,
+        safetyEventCounts: prefill?.safetyEventCounts ?? null,
         startLocation: prefill?.startLocation ?? null,
         endLocation: prefill?.endLocation ?? null,
         route: prefill?.route ?? null,
@@ -307,6 +317,34 @@ export default function LogDrive() {
           <input type="number" step="0.1" min="0" placeholder="e.g. 12.5" value={distance}
                  onChange={(e) => setDistance(e.target.value)} />
         </div>
+
+        {maxSpeedMph != null && (
+          <div className="field">
+            <label>Top speed (GPS)</label>
+            <div className="duration-box">
+              <span className="duration-value">{maxSpeedMph} mph</span>
+              <span className="duration-hint">recorded by the timer</span>
+            </div>
+          </div>
+        )}
+
+        {safetyEventCounts && (safetyEventCounts.hardBrake > 0 || safetyEventCounts.harshTurn > 0) && (
+          <div className="field">
+            <label>Safety events</label>
+            <div className="duration-box">
+              <span className="duration-value">
+                {[
+                  safetyEventCounts.hardBrake > 0 && `${safetyEventCounts.hardBrake} hard braking`,
+                  safetyEventCounts.harshTurn > 0 &&
+                    `${safetyEventCounts.harshTurn} harsh turn${safetyEventCounts.harshTurn > 1 ? 's' : ''}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+              <span className="duration-hint">detected by the timer</span>
+            </div>
+          </div>
+        )}
 
         <div className="field">
           <label>
