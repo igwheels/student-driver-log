@@ -103,7 +103,7 @@ import {
 const APPLE_SIGN_IN_ENABLED = import.meta.env.VITE_ENABLE_APPLE_SIGNIN === 'true';
 
 export default function Login() {
-  const { setUser, claimSession } = useApp();
+  const { setUser, claimSession, restoredSession } = useApp();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState(searchParams.get('email') || '');
@@ -129,6 +129,21 @@ export default function Login() {
       // Not worth failing login over — just skip the explanation.
     }
   }, []);
+
+  // The app always cold-starts on this route, and completeLogin() below is
+  // the only thing that ever navigates off it — so a session Firebase
+  // restored at launch used to land here and stay here, showing the sign-in
+  // form to someone who was already signed in. With biometric unlock on,
+  // that is what the lock overlay dismissed *to*, which is why the unlock
+  // flow could trace as fully successful and still end on the login screen.
+  //
+  // Keyed on restoredSession, not on `user` being set: an interactive
+  // sign-in sets `user` too, and redirecting on that would tear this screen
+  // down mid-flow — the unverified-email path signs in, checks
+  // emailVerified, and signs back out before it can show "check your email".
+  useEffect(() => {
+    if (restoredSession) navigate('/students', { replace: true });
+  }, [restoredSession, navigate]);
 
   const completeLogin = (profile) => {
     setUser(profile);

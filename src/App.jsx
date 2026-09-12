@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useApp } from './context/AppContext';
 import Login from './pages/Login';
@@ -14,6 +14,8 @@ import Unsubscribe from './pages/Unsubscribe';
 import TermsOfUse from './pages/TermsOfUse';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import ShareButton from './components/ShareButton';
+import BiometricLockScreen from './components/BiometricLockScreen';
+import BiometricEnrollPrompt from './components/BiometricEnrollPrompt';
 import { STATE_REQUIREMENTS } from './data/stateRequirements';
 import { buildDashboardSnapshotUrl } from './utils/snapshot';
 
@@ -44,8 +46,13 @@ function RequireAuth({ children }) {
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, students, getTotals } = useApp();
+  const {
+    logout, students, getTotals, user,
+    biometricLocked, dismissBiometricLock,
+    biometricEnrollLabel, dismissBiometricEnrollPrompt,
+  } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
+
   const isLogin = location.pathname === '/';
   const isTimer = location.pathname.startsWith('/drive-timer');
   const isSnapshot = location.pathname.startsWith('/snapshot');
@@ -163,6 +170,14 @@ export default function App() {
           <button onClick={() => navigate('/privacy')}>Privacy Policy</button>
         </div>
       </div>
+
+      {/* Overlays, not routes — rendered on top of whatever page is
+          current so neither one tears down in-progress state (a running
+          drive timer, an open form) underneath it. See DEV-28. */}
+      {biometricLocked && <BiometricLockScreen onUnlock={dismissBiometricLock} />}
+      {biometricEnrollLabel && user?.id && (
+        <BiometricEnrollPrompt uid={user.id} label={biometricEnrollLabel} onDone={dismissBiometricEnrollPrompt} />
+      )}
     </div>
   );
 }

@@ -31,12 +31,14 @@
     <link rel="apple-touch-icon" href="/pwa-192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap"
-      rel="stylesheet"
-    />
+    <!--
+      Fonts are self-hosted (public/fonts/, @font-face in src/styles/theme.css),
+      not loaded from fonts.googleapis.com. A remote stylesheet in <head> is
+      parser-blocking for the sync script that follows it, so on a device with
+      no/slow network at launch the HTML parser stalls before <body> is built
+      and the app never mounts — a white screen. A native app must render with
+      zero external dependencies. Do not add a Google Fonts <link> back here.
+    -->
   </head>
   <body>
     <div id="root"></div>
