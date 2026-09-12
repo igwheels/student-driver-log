@@ -22,6 +22,7 @@ import {
   hapticsAvailable,
   pulseSafetyAlert,
 } from '../utils/haptics';
+import { setTelematicsEnabled } from '../utils/telematics';
 import {
   checkBiometryAvailability,
   isBiometricEnabledForUser,
@@ -128,10 +129,22 @@ export default function Account() {
   };
 
   const [safetyHaptics, setSafetyHaptics] = useState(() => safetyHapticsEnabled());
+  // sdl_telematics (detection) used to have no UI at all — see the toggle
+  // handler below — so an install from before this was wired up can have
+  // safetyHaptics already 'on' (its default) while detection has still
+  // never once been turned on. Sync it here too, not just on toggle, so
+  // reaching this page is enough to fix that without the user having to
+  // uncheck and recheck a box that already looks correct.
+  useEffect(() => {
+    setTelematicsEnabled(safetyHaptics);
+  }, [safetyHaptics]);
   const handleSafetyHapticsToggle = (e) => {
     const on = e.target.checked;
     setSafetyHaptics(on);
     setSafetyHapticsEnabled(on);
+    // sdl_telematics (detection itself) is kept in sync by the effect
+    // above, driven off this same state — see its comment for why that's
+    // needed on top of just handling the toggle here.
     // Buzz once on enable so it's clear what was just turned on.
     if (on) pulseSafetyAlert();
   };
@@ -398,8 +411,9 @@ export default function Account() {
             Unlock with {biometricLabel} instead of your password
           </label>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
-            This only gates opening the app on this device — it doesn't replace your account's
-            password or change who can sign in.
+            Reopening the app on this device always asks for one or the other — {biometricLabel} if
+            this is on, your password (or Google) if it's off. It doesn't change your account's
+            password or who can sign in with it.
           </p>
           {biometricError && <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{biometricError}</p>}
         </section>

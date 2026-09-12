@@ -30,6 +30,14 @@ const MPH_PER_MPS = 3600 / 1609.344;
 // on the timer or bank it as the drive's top speed.
 const IMPLAUSIBLE_SPEED_MPH = 120;
 
+// Below this, a "speed" is Doppler noise, not motion — consumer GNSS derives
+// coords.speed from the carrier's Doppler shift, which commonly jitters a
+// few mph even sitting still (multipath, satellite geometry), especially at
+// a stop light with buildings/trees around. Clamped to 0 rather than
+// dropped like IMPLAUSIBLE_SPEED_MPH: dropping it would freeze the readout
+// on the last real speed instead of honestly showing the vehicle stopped.
+const MIN_PLAUSIBLE_SPEED_MPH = 3;
+
 // Reject a speed sample that would need harder acceleration than any street
 // car manages (~0.5 g). One-directional on purpose: real braking can be
 // sharper than this, so a large drop is left alone — only an implausible
@@ -259,6 +267,7 @@ export function startMileageTracking(onUpdate, options = {}) {
     // large, which is the honest answer — we can't judge across it.
     let speedMph = metersPerSecondToMph(speed);
     if (speedMph != null && speedMph > IMPLAUSIBLE_SPEED_MPH) speedMph = null;
+    if (speedMph != null && speedMph < MIN_PLAUSIBLE_SPEED_MPH) speedMph = 0;
     if (speedMph != null && lastAcceptedSpeed != null && lastAcceptedSpeedAt != null) {
       const dtSec = (timeMs - lastAcceptedSpeedAt) / 1000;
       if (dtSec > 0 && speedMph - lastAcceptedSpeed > MAX_ACCEL_MPH_PER_S * dtSec) {

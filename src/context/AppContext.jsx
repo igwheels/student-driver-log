@@ -66,6 +66,10 @@ export function AppProvider({ children }) {
   // leaves someone sitting on the sign-in form while actually signed in.
   // Login.jsx watches this and redirects; see the note there for why it
   // keys on this rather than on `user` being present.
+  // NOT set on native for a restored session whose account doesn't have
+  // biometrics enabled — that path signs the user out instead (see the
+  // onAuthStateChanged handler below), and Login must never be told to
+  // reveal Students first for a session about to be torn down.
   const [restoredSession, setRestoredSession] = useState(false);
   // True only for the very first onAuthStateChanged callback of this app
   // load — the one that reports whatever session Firebase already had
@@ -113,44 +117,51 @@ export function AppProvider({ children }) {
               }
         );
 
-        // Not gated on isNativePlatform: the web app cold-starts on '/'
-        // with a restored session too, and has the same nowhere-to-go
-        // problem.
-        if (wasFirstCheck) setRestoredSession(true);
-
-        // DEV-28 / DEV-8 phase 4. Two mutually exclusive cases, split on
+        // DEV-28 / DEV-8 phase 4. Three cases, split on platform and
         // wasFirstCheck:
-        //  - Cold start with a session Firebase already had persisted ->
-        //    if this device has biometric unlock enabled, lock immediately
-        //    (before anything renders on screen unprotected), then confirm
-        //    the biometric session is still within policy. If it has aged
-        //    past MAX_BIOMETRIC_SESSION_MS or the device rebooted since it
-        //    was armed, drop straight to a full sign-in instead: signOut()
-        //    lands in the else branch below, which clears the lock.
-        //  - A fresh interactive sign-in (including one completed from
-        //    BiometricLockScreen's "Sign in another way" fallback) -> the
-        //    password/Google/Apple prompt they just completed IS the proof
-        //    of identity; never lock right on top of that. Re-arm the
+        //  - Web/PWA has no biometric feature at all (no device to check
+        //    against) -> always restore straight in, exactly as before any
+        //    of this existed.
+        //  - Native, cold start with a session Firebase already had
+        //    persisted -> NO BYPASS: an account either has biometrics
+        //    enabled (lock behind it, then confirm the biometric session is
+        //    still within policy — aged past MAX_BIOMETRIC_SESSION_MS or a
+        //    reboot since arming forces a full sign-in instead) or it
+        //    doesn't, in which case a full sign-in is required regardless —
+        //    reopening the app is never a silent, unauthenticated restore.
+        //    The Account "App unlock" toggle is what decides which of these
+        //    two path an account is on.
+        //    isBiometricEnabledForUser has to be read BEFORE setting
+        //    restoredSession: if the answer is "force sign-in", Login must
+        //    never be told to navigate to Students first, even for one
+        //    render — that would flash a minor's drive history on screen
+        //    before the sign-out actually completes.
+        //  - Native, fresh interactive sign-in (including one completed
+        //    from BiometricLockScreen's "Sign in another way" fallback) ->
+        //    the password/Google prompt they just completed IS the proof of
+        //    identity; never lock right on top of that. Re-arm the
         //    biometric session window, and if this account hasn't been
         //    asked before and the device has biometrics, offer to enable.
-        if (Capacitor.isNativePlatform()) {
-          if (wasFirstCheck) {
-            if (isBiometricEnabledForUser(firebaseUser.uid)) {
-              setBiometricLocked(true);
-              evaluateBiometricSession(firebaseUser.uid).then(({ ok, reason }) => {
-                if (!ok) {
-                  signOut(auth);
-                }
-              });
-            } else {
-            }
+        if (!Capacitor.isNativePlatform()) {
+          if (wasFirstCheck) setRestoredSession(true);
+        } else if (wasFirstCheck) {
+          if (isBiometricEnabledForUser(firebaseUser.uid)) {
+            setRestoredSession(true);
+            setBiometricLocked(true);
+            evaluateBiometricSession(firebaseUser.uid).then(({ ok, reason }) => {
+              if (!ok) {
+                signOut(auth);
+              }
+            });
           } else {
-            armBiometricSession(firebaseUser.uid);
-            if (!hasAskedBiometricEnrollment(firebaseUser.uid) && !isBiometricEnabledForUser(firebaseUser.uid)) {
-              checkBiometryAvailability().then(({ isAvailable, label }) => {
-                if (isAvailable) setBiometricEnrollLabel(label);
-              });
-            }
+            signOut(auth);
+          }
+        } else {
+          armBiometricSession(firebaseUser.uid);
+          if (!hasAskedBiometricEnrollment(firebaseUser.uid) && !isBiometricEnabledForUser(firebaseUser.uid)) {
+            checkBiometryAvailability().then(({ isAvailable, label }) => {
+              if (isAvailable) setBiometricEnrollLabel(label);
+            });
           }
         }
       } else {

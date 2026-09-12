@@ -1,14 +1,21 @@
 /**
  * Biometric unlock — DEV-27/28/29.
  *
- * This is deliberately NOT an authentication system. It's a local unlock
- * gate in front of an already-signed-in Firebase session: Firebase's own
- * persisted session (browserLocalPersistence, see src/firebase.js) is what
- * actually keeps someone signed in across app restarts, same as it always
- * has. Biometrics only decide whether the *already-authenticated* app is
- * visible right now. Nothing here touches AppContext's auth state or
- * Firestore security rules — see DEV-8's own description, which says the
- * same thing.
+ * Not a second credential to Firebase — nothing here ever talks to it, and
+ * Firestore security rules are untouched. Firebase's own persisted session
+ * (see src/firebase.js) is still what actually keeps someone signed in
+ * across app restarts. What biometrics decide is whether reopening the app
+ * is allowed to reveal that already-authenticated session at all: on
+ * native, there is no bypass — an account either unlocks with biometrics
+ * (this module) or, if this device/account doesn't have them enabled, the
+ * app forces a real sign-in instead (AppContext's cold-start handling) —
+ * reopening the app never silently restores with no check of any kind. The
+ * Account "App unlock" toggle (setBiometricEnabledForUser) is what decides
+ * which of those two paths a given account is on.
+ *
+ * Web/PWA has no biometric hardware to check against, so none of this
+ * applies there — a restored session is still shown straight away, exactly
+ * as it always has been.
  *
  * Session policy (DEV-8 phase 4): the gate is only offered in place of a
  * full sign-in for a bounded window. armBiometricSession() stamps the

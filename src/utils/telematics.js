@@ -14,14 +14,21 @@ const PREF_KEY = 'sdl_telematics';
 
 /**
  * localStorage 'sdl_telematics':
- *   (unset) / 'off' — no detection. The default: the thresholds are
- *                     unverified and the spec says not to trust them yet.
- *   'on'            — detect, buzz, count.
+ *   (unset) / 'off' — no detection. setTelematicsEnabled(false) — Account's
+ *                     "Driving-safety alerts" toggle unchecked — sets this.
+ *   'on'            — detect, buzz, count. Set by that same toggle when
+ *                     checked. Thresholds are still unverified (see
+ *                     telematicsCore.js) — this only controls whether
+ *                     detection runs at all, not whether it's accurate yet.
  *   'debug'         — 'on' + a throttled console trace of the smoothed
- *                     signals vs. their thresholds, and every event.
+ *                     signals vs. their thresholds, and every event. Set by
+ *                     hand (localStorage.setItem) for real-device tuning —
+ *                     no UI for it, and the Account toggle would overwrite
+ *                     it back to plain 'on'/'off'.
  *   'capture'       — 'on' + records every raw sample; downloads (and
  *                     console-dumps) a CSV when the drive ends, for
- *                     scripts/replay-telematics.mjs.
+ *                     scripts/replay-telematics.mjs. Same manual-only caveat
+ *                     as 'debug'.
  */
 export function telematicsMode() {
   try {
