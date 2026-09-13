@@ -105,6 +105,30 @@ This relies on two collections that aren't covered by the existing rules:
 
 Run them in that order: the rules deny listing, which the old query-based lookup depended on, so publish them only once the hashed entries exist and the matching app version is deployed.
 
+## Sharing access is keyed by uid, not email (DEV-62)
+
+`sharedWithEmails` alone broke for Apple "Hide My Email" recipients: Firebase Auth reports a per-app relay address (`@privaterelay.appleid.com`) as `request.auth.token.email` instead of the real address the student was shared with, so the collection-group query matched nothing and the recipient saw an empty student list with no error — and the relay address isn't even guaranteed stable across sign-ins.
+
+`sharedWithUids` is the durable fix: once a share resolves to a recipient's stable uid, access no longer depends on which address is currently signed in. It's resolved one of two ways — see `firestore.rules`' `isSharedWithMe()`/self-resolve rule and `src/context/AppContext.jsx`'s `shareStudent()`/`loadFromFirestore()`:
+
+- **At share time**, if the recipient already has an account — looked up via `emailToUid/{email} -> { uid }`, a directory every account writes for itself on sign-in.
+- **At the recipient's next sign-in with the invited address**, self-resolved client-side and permitted by a narrow rule (append-only, own uid, only when already listed in `sharedWithEmails`).
+
+`sharedWithEmails` is kept alongside `sharedWithUids`, not replaced — it's still what grants access the first time, before any uid exists, and it's still what the weekly-email script sends to.
+
+**One-time setup after deploying this change to an existing installation:**
+
+1. Publish the updated `firestore.rules` (adds `sharedWithUids`-based access, the `emailToUid` collection, and the self-resolve rule).
+2. Backfill existing shares and the `emailToUid` directory so they don't have to wait for a recipient's next sign-in:
+   ```bash
+   export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
+   node scripts/migrate-backfill-shared-uids.js --dry-run
+   node scripts/migrate-backfill-shared-uids.js
+   ```
+   Idempotent — safe to re-run any time (e.g. after a batch of new signups) to resolve uids for shares that were pending.
+
+**Known gap not covered by this change** (see DEV-62 for the full write-up): weekly-email delivery to a relay address still requires registering the sending domain with Apple's Private Relay, and the Account page's "send me weekly emails" toggle keys `emailPreferences` off the signed-in user's *current* auth email rather than their resolved real address — a shared recipient using Hide My Email can end up toggling a different preference document than the one `scripts/send-weekly-emails.js` actually checks. Both are tracked separately, not fixed by the uid-based access change.
+
 ## Project structure
 
 ```
@@ -124,6 +148,7 @@ src/utils/escapeHtml.js          HTML/header escaping for outbound emails
 src/utils/emailHash.js           studentDirectory document key (SHA-256 of email)
 scripts/send-weekly-emails.js    weekly email cron script (run by GitHub Actions)
 scripts/migrate-add-sharing-fields.js  migrate existing students for sharing feature
+scripts/migrate-backfill-shared-uids.js  backfill sharedWithUids + emailToUid (DEV-62)
 .github/workflows/deploy.yml     builds + publishes to GitHub Pages on push
 .github/workflows/weekly-emails.yml  Monday-morning progress email cron
 ```

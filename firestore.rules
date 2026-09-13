@@ -18,8 +18,23 @@ service cloud.firestore {
       return request.auth.token.email.lower();
     }
 
+    // DEV-62: access is keyed off the stable uid a share has resolved to,
+    // not off whichever address Firebase currently reports as
+    // request.auth.token.email. Apple's Hide My Email can hand a shared
+    // recipient a different relay address across sign-ins (or start
+    // reporting a relay address for someone previously matched on their
+    // real one), which broke sharedWithEmails matching outright — the
+    // collection-group query returned nothing and they saw an empty
+    // student list with no error.
+    //
+    // sharedWithUids is populated in one of two ways: at share time, if
+    // the recipient already has an account (shareStudent's emailToUid
+    // lookup), or the first time they sign in with the address they were
+    // invited under (the self-resolve rule below, driven by the matching
+    // client logic in src/context/AppContext.jsx). Once populated, access
+    // no longer depends on email at all.
     function isSharedWithMe(studentData) {
-      return studentData.sharedWithEmails is list && myEmail() in studentData.sharedWithEmails;
+      return request.auth.uid in studentData.get('sharedWithUids', []);
     }
 
     // ---------------------------------------------------------------------
@@ -205,10 +220,26 @@ service cloud.firestore {
     match /users/{ownerId}/students/{studentId} {
       allow read: if signedIn() &&
         (request.auth.uid == ownerId ||
-         isSharedWithMe(resource.data));
+         isSharedWithMe(resource.data) ||
+         myEmail() in resource.data.get('sharedWithEmails', []));
       allow create, update: if signedIn() &&
         request.auth.uid == ownerId &&
         request.resource.data.ownerId == ownerId;
+      // DEV-62: lets a shared recipient pin their own stable uid onto a
+      // student they were invited to by email, the first time they sign
+      // in with that exact address — see isSharedWithMe() above and the
+      // reconciliation logic in src/context/AppContext.jsx's
+      // loadFromFirestore. Scoped tightly so this can't become a way to
+      // add access rather than merely resolve an invite already extended:
+      // the caller's own current sign-in email must already be listed in
+      // sharedWithEmails, their uid must not already be in sharedWithUids,
+      // and the only change permitted is appending exactly that uid to
+      // exactly that field.
+      allow update: if signedIn() &&
+        myEmail() in resource.data.get('sharedWithEmails', []) &&
+        !(request.auth.uid in resource.data.get('sharedWithUids', [])) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sharedWithUids']) &&
+        request.resource.data.sharedWithUids == resource.data.get('sharedWithUids', []).concat([request.auth.uid]);
       allow delete: if signedIn() && request.auth.uid == ownerId;
 
       // Owner and shared co-parents get full read/write on drive logs.
@@ -227,7 +258,34 @@ service cloud.firestore {
     // (get() requests evaluate fully dynamically), so it can keep using
     // the helper.
     match /{path=**}/students/{studentId} {
-      allow read: if signedIn() && myEmail() in resource.data.sharedWithEmails;
+      allow read: if signedIn() &&
+        (myEmail() in resource.data.get('sharedWithEmails', []) ||
+         request.auth.uid in resource.data.get('sharedWithUids', []));
+    }
+
+    // ---------------------------------------------------------------------
+    // emailToUid/{email} -> { uid }
+    //
+    // Self-written on every sign-in (src/context/AppContext.jsx), so
+    // shareStudent() can resolve a recipient's stable uid immediately when
+    // they already have an account, instead of waiting for their first
+    // post-share sign-in to self-resolve it (see isSharedWithMe() above).
+    // Keyed by the literal lowercased address, same as emailPreferences —
+    // no reason to hash it, since get() is scoped to the caller's own
+    // current email regardless.
+    //
+    // A caller may only ever write the document for their OWN current
+    // sign-in email, and only their own uid into it, so this can't be used
+    // to plant somebody else's uid under an address they don't control.
+    // ---------------------------------------------------------------------
+    match /emailToUid/{email} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn() &&
+        email == myEmail() &&
+        request.resource.data.keys().hasOnly(['uid']) &&
+        request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
     }
 
     // ---------------------------------------------------------------------

@@ -310,6 +310,21 @@ export function AppProvider({ children }) {
     }
   };
 
+  // DEV-62: records this account's current sign-in email -> uid, so
+  // shareStudent() can resolve a recipient's stable uid immediately if
+  // they already have an account, rather than waiting for their next
+  // sign-in to self-resolve it (see loadFromFirestore below). Re-runs
+  // whenever the reported email changes, which is exactly what keeps this
+  // useful for an Apple "Hide My Email" account whose relay address can
+  // rotate — each address it's ever signed in under stays mapped to the
+  // same uid.
+  useEffect(() => {
+    if (!user?.id || !user?.email) return;
+    setDoc(doc(db, 'emailToUid', normalizeEmail(user.email)), { uid: user.id }).catch((e) =>
+      console.warn("Failed to record email->uid mapping (non-fatal — a new share to this address just won't resolve instantly):", e)
+    );
+  }, [user?.id, user?.email]);
+
   // Live-subscribes to this account's own Family Pack entitlement doc
   // (functions/src/validatePurchase.js is the only thing that ever writes
   // it). Resets to false on sign-out so a previous session's entitlement
@@ -368,16 +383,46 @@ export function AppProvider({ children }) {
           isOwner: true,
         }));
 
-        // Students shared with this user's email, found via a collection-group query
-        // (avoids scanning every user's data — only matches students that list this email)
+        // Students shared with this user, found via two collection-group
+        // queries (avoids scanning every user's data — only matches
+        // students that list this uid or email). DEV-62: sharedWithUids is
+        // the durable path — once a share has resolved to this uid, access
+        // survives whatever address Firebase later reports for this
+        // account (Apple's Hide My Email can rotate the relay address, or
+        // start reporting one for someone previously matched on their real
+        // address). sharedWithEmails is what grants access the FIRST time,
+        // before any uid has been recorded, and finding a student there
+        // that isn't in sharedWithUids yet is exactly the signal to
+        // self-resolve this uid onto it below.
         let sharedStudents = [];
         try {
-          const sharedQuery = query(
-            collectionGroup(db, 'students'),
-            where('sharedWithEmails', 'array-contains', userEmail)
-          );
-          const sharedSnap = await getDocs(sharedQuery);
-          sharedStudents = sharedSnap.docs
+          const [byUidSnap, byEmailSnap] = await Promise.all([
+            getDocs(
+              query(collectionGroup(db, 'students'), where('sharedWithUids', 'array-contains', user.id))
+            ),
+            getDocs(
+              query(collectionGroup(db, 'students'), where('sharedWithEmails', 'array-contains', userEmail))
+            ),
+          ]);
+
+          const byId = new Map();
+          for (const d of byUidSnap.docs) byId.set(d.id, d);
+          for (const d of byEmailSnap.docs) {
+            byId.set(d.id, d);
+            const data = d.data();
+            const uids = data.sharedWithUids || [];
+            if (!uids.includes(user.id)) {
+              // First time this uid has shown up signed in with the invited
+              // address — pin it so future access no longer depends on
+              // which address is currently signed in. Fire-and-forget:
+              // email-based access already works this session regardless.
+              updateDoc(d.ref, { sharedWithUids: [...uids, user.id] }).catch((e) =>
+                console.warn('Failed to self-resolve shared-student access (non-fatal, email-based access still works this session):', e)
+              );
+            }
+          }
+
+          sharedStudents = Array.from(byId.values())
             .filter((d) => d.data().ownerId !== user.id) // safety: don't double-list own students
             .map((d) => ({ ...d.data(), id: d.id, isOwner: false }));
         } catch (e) {
@@ -434,6 +479,7 @@ export function AppProvider({ children }) {
       ownerEmail: user?.email ?? '',
       sharedWith: [],
       sharedWithEmails: [],
+      sharedWithUids: [],
       isOwner: true,
     };
     setStudents((prev) => [...prev, newStudent]);
@@ -779,19 +825,43 @@ export function AppProvider({ children }) {
       throw new Error('Already shared with that email');
     }
 
-    const updatedSharedWith = [...currentSharedWith, { email, addedAt: new Date().toISOString() }];
+    // DEV-62: if the recipient already has an account, resolve their uid
+    // right now instead of waiting for their next sign-in to self-resolve
+    // it — see the emailToUid doc written on every sign-in above. Not
+    // fatal if this lookup fails or finds nothing: the recipient signing
+    // in with this exact address later still grants access the same way
+    // it always has (sharedWithEmails), and self-resolves the uid then.
+    let recipientUid = null;
+    try {
+      const mapSnap = await getDoc(doc(db, 'emailToUid', email));
+      if (mapSnap.exists()) recipientUid = mapSnap.data().uid || null;
+    } catch (e) {
+      console.warn('Could not check for an existing account at that email (non-fatal):', e);
+    }
+
+    const updatedSharedWith = [
+      ...currentSharedWith,
+      { email, uid: recipientUid, addedAt: new Date().toISOString() },
+    ];
     const updatedSharedWithEmails = updatedSharedWith.map((s) => s.email);
+    const updatedSharedWithUids = updatedSharedWith.map((s) => s.uid).filter(Boolean);
 
     const studentRef = doc(db, 'users', user.id, 'students', studentId);
     await updateDoc(studentRef, {
       sharedWith: updatedSharedWith,
       sharedWithEmails: updatedSharedWithEmails,
+      sharedWithUids: updatedSharedWithUids,
     });
 
     setStudents((prev) =>
       prev.map((s) =>
         s.id === studentId
-          ? { ...s, sharedWith: updatedSharedWith, sharedWithEmails: updatedSharedWithEmails }
+          ? {
+              ...s,
+              sharedWith: updatedSharedWith,
+              sharedWithEmails: updatedSharedWithEmails,
+              sharedWithUids: updatedSharedWithUids,
+            }
           : s
       )
     );
@@ -817,17 +887,24 @@ export function AppProvider({ children }) {
 
     const updatedSharedWith = (student.sharedWith || []).filter((s) => s.email !== email);
     const updatedSharedWithEmails = updatedSharedWith.map((s) => s.email);
+    const updatedSharedWithUids = updatedSharedWith.map((s) => s.uid).filter(Boolean);
 
     const studentRef = doc(db, 'users', user.id, 'students', studentId);
     await updateDoc(studentRef, {
       sharedWith: updatedSharedWith,
       sharedWithEmails: updatedSharedWithEmails,
+      sharedWithUids: updatedSharedWithUids,
     });
 
     setStudents((prev) =>
       prev.map((s) =>
         s.id === studentId
-          ? { ...s, sharedWith: updatedSharedWith, sharedWithEmails: updatedSharedWithEmails }
+          ? {
+              ...s,
+              sharedWith: updatedSharedWith,
+              sharedWithEmails: updatedSharedWithEmails,
+              sharedWithUids: updatedSharedWithUids,
+            }
           : s
       )
     );
